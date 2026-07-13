@@ -19,6 +19,6 @@ async function bootstrap() {
   // Swagger UIのエンドポイントを /api/docs に設定
   SwaggerModule.setup('api/docs', app, document);
 
-  await app.listen(3000);
+  await app.listen(3000, '0.0.0.0');
 }
 bootstrap();
