@@ -46,17 +46,43 @@ export class Task {
 
   get id(): string { return this.props.id; }
   get title(): string { return this.props.title; }
+  get description(): string | undefined { return this.props.description; }
+  get projectId(): string { return this.props.projectId; }
+  get ticketId(): string | undefined { return this.props.ticketId; }
+  get assignedUserId(): string | undefined { return this.props.assignedUserId; }
   get progressState(): TaskProgressState { return this.props.progressState; }
-  get actualStartDate(): Date | undefined { return this.props.actualStartDate; }
-  get actualEndDate(): Date | undefined { return this.props.actualEndDate; }
+  get categoryId(): string { return this.props.categoryId; }
+  get priority(): TaskPriority { return this.props.priority; }
   get plannedStartDate(): Date | undefined { return this.props.plannedStartDate; }
   get plannedEndDate(): Date | undefined { return this.props.plannedEndDate; }
+  get actualStartDate(): Date | undefined { return this.props.actualStartDate; }
+  get actualEndDate(): Date | undefined { return this.props.actualEndDate; }
+  get estimatedHours(): number | undefined { return this.props.estimatedHours; }
+  get createdBy(): string { return this.props.createdBy; }
+  get createdAt(): Date { return this.props.createdAt; }
   get updatedAt(): Date { return this.props.updatedAt; }
 
   private validateDates(start?: Date, end?: Date) {
     if (start && end && start > end) {
       throw new Error('planned_start_date cannot be after planned_end_date');
     }
+  }
+
+  public updateBasicInfo(info: {
+    title?: string;
+    description?: string;
+    assignedUserId?: string;
+    categoryId?: string;
+    priority?: TaskPriority;
+    estimatedHours?: number;
+  }) {
+    if (info.title !== undefined) this.props.title = info.title;
+    if (info.description !== undefined) this.props.description = info.description;
+    if (info.assignedUserId !== undefined) this.props.assignedUserId = info.assignedUserId;
+    if (info.categoryId !== undefined) this.props.categoryId = info.categoryId;
+    if (info.priority !== undefined) this.props.priority = info.priority;
+    if (info.estimatedHours !== undefined) this.props.estimatedHours = info.estimatedHours;
+    this.props.updatedAt = new Date();
   }
 
   public updatePlannedDates(start?: Date, end?: Date) {
