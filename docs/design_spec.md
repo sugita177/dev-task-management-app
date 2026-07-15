@@ -74,6 +74,24 @@ erDiagram
         TEXT comment
         TIMESTAMP changed_at
     }
+    comments {
+        UUID id PK
+        UUID task_id FK
+        UUID user_id FK
+        TEXT content
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
+    work_logs {
+        UUID id PK
+        UUID task_id FK
+        UUID user_id FK
+        DATE logged_date
+        DECIMAL hours
+        VARCHAR description
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
     progress_states {
         UUID id PK
         VARCHAR name
@@ -97,6 +115,10 @@ erDiagram
     priorities ||--o{ tasks : "has priority"
     tasks ||--o{ task_histories : "records"
     users ||--o{ task_histories : "changed by"
+    tasks ||--o{ comments : "has"
+    users ||--o{ comments : "posted by"
+    tasks ||--o{ work_logs : "has"
+    users ||--o{ work_logs : "logged by"
 ```
 
 ### 3.1. テーブル定義一覧
@@ -168,7 +190,29 @@ erDiagram
 | `comment` | TEXT | | 変更時のコメント（任意） |
 | `changed_at` | TIMESTAMP| NOT NULL | 変更日時 |
 
-#### 7. マスタテーブル群 (`progress_states`, `categories`, `priorities`)
+#### 7. comments (コメント)
+| カラム名 | 型 | 制約 | 説明 |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | PK | コメントの一意識別子 |
+| `task_id` | UUID | FK, NOT NULL | 対象タスク（`tasks.id`） |
+| `user_id` | UUID | FK, NOT NULL | 投稿ユーザー（`users.id`） |
+| `content` | TEXT | NOT NULL | コメント本文 |
+| `created_at` | TIMESTAMP| NOT NULL | 投稿日時 |
+| `updated_at` | TIMESTAMP| NOT NULL | 最終更新日時 |
+
+#### 8. work_logs (実績工数記録)
+| カラム名 | 型 | 制約 | 説明 |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | PK | 工数記録の一意識別子 |
+| `task_id` | UUID | FK, NOT NULL | 対象タスク（`tasks.id`） |
+| `user_id` | UUID | FK, NOT NULL | 作業ユーザー（`users.id`） |
+| `logged_date` | DATE | NOT NULL | 作業日 |
+| `hours` | DECIMAL | NOT NULL | 費やした工数（時間） |
+| `description` | VARCHAR | | 作業内容メモ（任意） |
+| `created_at` | TIMESTAMP| NOT NULL | 記録日時 |
+| `updated_at` | TIMESTAMP| NOT NULL | 最終更新日時 |
+
+#### 9. マスタテーブル群 (`progress_states`, `categories`, `priorities`)
 * それぞれ `id` (PK), `name` (NOT NULL) カラムを持ち、ステータス（未着手/進行中...）、カテゴリ（フロント/バックエンド...）、優先度（高/中/低）を管理。
 
 ### 3.2. インデックス設計
@@ -201,6 +245,8 @@ erDiagram
 | F-008 | ユーザー管理 | ユーザー登録・更新・削除 | システムを利用するメンバーのアカウント・権限管理 | 管理者 |
 | F-009 | マスタ管理 | ステータス・カテゴリ管理 | ステータスやカテゴリ等のマスタデータ管理 | 管理者 |
 | F-010 | プロジェクト管理 | プロジェクト作成・アーカイブ | 現場のスピード感を保つため全ロールで作成可能とする（表記揺れ防止のサジェストを導入） | 全ロール |
+| F-011 | 工数管理 | タイムトラッキング | 各タスクへの日々の実績工数記録・集計 | 全ロール |
+| F-012 | コミュニケーション | タスクコメント | タスク詳細内でのメンバー間コメントのやり取り | 全ロール |
 
 ### 4.1. 抽出（フィルタリング）＆ソート仕様
 一覧性を高め、実用的なタスク管理を実現するため、フロントエンド・バックエンド双方で以下のクエリパラメータに対応します。
@@ -234,6 +280,8 @@ erDiagram
 | `/api/tasks/:id` | GET | タスク詳細取得 | |
 | `/api/tasks/:id` | PUT | タスク情報更新 | ステータス変更、担当者アサイン変更など |
 | `/api/tasks/:id` | DELETE | タスク削除 | |
+| `/api/tasks/:id/comments` | GET / POST | タスクコメント取得 / 投稿 | |
+| `/api/tasks/:id/work-logs` | GET / POST | タスク実績工数取得 / 記録 | |
 | `/api/tasks/:id/histories` | GET | タスク変更履歴取得 | タスク詳細画面のタイムライン表示用 |
 | `/api/masters/:type` | GET | マスタ情報取得 | `categories`, `priorities`, `progress_states` などの一覧 |
 
@@ -248,7 +296,7 @@ erDiagram
 | S-001 | ログイン画面 | メールアドレス・パスワードでの認証 | `/login` |
 | S-002 | ダッシュボード画面 | 自分の担当タスク一覧、直近の期日のタスク、自分が依頼したタスク一覧（ビジネスサイド向け）をサマリー表示 | `/` |
 | S-003 | タスク一覧・検索画面 | 条件を指定してタスクを検索し、リスト形式で表示 | `/tasks` |
-| S-004 | タスク詳細画面 | 特定タスクの詳細情報、ステータス変更、タイムライン履歴表示 | `/tasks/:id` |
+| S-004 | タスク詳細画面 | 特定タスクの詳細情報、ステータス変更、タイムライン履歴・コメント表示、工数記録 | `/tasks/:id` |
 | S-005 | ガントチャート画面 | プロジェクトごとのタイムラインと進捗を可視化 | `/gantt` |
 | S-006 | メンバーアサイン表画面 | メンバーごとの負荷状況（アサイン済みタスク）の可視化 | `/assignments` |
 | S-007 | ユーザー管理画面 | 管理者向け。アカウント追加・権限付与・削除 | `/admin/users` |
@@ -302,7 +350,7 @@ flowchart TD
   * メンバーのタスクをクリック -> **タスク詳細画面 (`/tasks/:id`)**
 
 ### 6.3. 状態管理・データフェッチ方針
-* **非同期通信・サーバー状態管理:** `SWR` または `React Query` を使用し、タスク一覧や詳細の取得、キャッシュ制御を行う。
+* **非同期通信・サーバー状態管理:** `SWR` または `React Query` (TanStack Query) を使用し、タスク一覧や詳細の取得、キャッシュ制御を行う。
 * **クライアント状態管理:** 複雑なUI状態（ガントチャートの表示スパンや、フィルタ条件の一時保存など）には `Zustand` などを利用。
 * **コンポーネント設計:** Presentational / Container パターン、または Hooks によるロジック分離を徹底し、再利用性の高い Tailwind CSS コンポーネントを構築。
 
@@ -358,6 +406,8 @@ AI（Gemini）と開発者が実装時にコードの命名規則でブレを起
 * **タスク**: `Task`（※集約ルート）
 * **外部チケット**: `Ticket`
 * **タスク変更履歴**: `TaskHistory`
+* **実績工数記録**: `WorkLog`
+* **コメント**: `Comment`
 * **進捗状況**: `TaskProgressState` (Enum)
   * 未着手: `BACKLOG`
   * 進行中: `IN_PROGRESS`
