@@ -22,7 +22,11 @@ export const taskApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
-    if (!res.ok) throw new Error('Failed to create task');
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      const errorMsg = Array.isArray(errData.message) ? errData.message.join(', ') : (errData.message || 'Failed to create task');
+      throw new Error(errorMsg);
+    }
     return res.json();
   },
 
@@ -32,7 +36,11 @@ export const taskApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
     });
-    if (!res.ok) throw new Error(`Failed to update task ${id}`);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      const errorMsg = Array.isArray(errData.message) ? errData.message.join(', ') : (errData.message || `Failed to update task ${id}`);
+      throw new Error(errorMsg);
+    }
     return res.json();
   },
 };

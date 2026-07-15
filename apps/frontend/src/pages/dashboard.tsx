@@ -13,41 +13,41 @@ const mockStats = {
   actualHours: 92,
 };
 
-// Task 型に厳密に準拠したモックデータを作成
+// Task 型に厳密に準拠し、UUIDに準拠したモックデータを作成
 const mockRecentTasks: Task[] = [
   {
     id: '1',
     title: '認証機能の結合テスト作成',
-    projectId: 'proj-1',
+    projectId: '00000000-0000-0000-0000-000000000201',
     progressState: 'IN_PROGRESS',
-    categoryId: 'cat-1',
+    categoryId: '00000000-0000-0000-0000-000000000301',
     priority: 'HIGH',
     plannedEndDate: '2026-07-20',
-    createdBy: 'user-1',
+    createdBy: '00000000-0000-0000-0000-000000000401',
     createdAt: '2026-07-10T00:00:00Z',
     updatedAt: '2026-07-12T00:00:00Z',
   },
   {
     id: '2',
     title: 'ダッシュボードUIのコーディング',
-    projectId: 'proj-2',
+    projectId: '00000000-0000-0000-0000-000000000202',
     progressState: 'IN_REVIEW',
-    categoryId: 'cat-2',
+    categoryId: '00000000-0000-0000-0000-000000000303',
     priority: 'MEDIUM',
     plannedEndDate: '2026-07-16',
-    createdBy: 'user-1',
+    createdBy: '00000000-0000-0000-0000-000000000401',
     createdAt: '2026-07-10T00:00:00Z',
     updatedAt: '2026-07-12T00:00:00Z',
   },
   {
     id: '3',
     title: 'DBインデックスの最適化',
-    projectId: 'proj-3',
+    projectId: '00000000-0000-0000-0000-000000000203',
     progressState: 'BACKLOG',
-    categoryId: 'cat-3',
+    categoryId: '00000000-0000-0000-0000-000000000302',
     priority: 'LOW',
     plannedEndDate: '2026-07-28',
-    createdBy: 'user-1',
+    createdBy: '00000000-0000-0000-0000-000000000401',
     createdAt: '2026-07-10T00:00:00Z',
     updatedAt: '2026-07-12T00:00:00Z',
   },
@@ -177,7 +177,7 @@ export default function Dashboard() {
                 <div className="space-y-1">
                   <p className="font-semibold text-slate-800 text-sm hover:text-indigo-600 cursor-pointer">{task.title}</p>
                   <div className="flex items-center gap-3 text-xs text-slate-400">
-                    <span className="font-medium text-slate-500">プロジェクト-{task.projectId}</span>
+                    <span className="font-medium text-slate-500">プロジェクト {task.projectId.slice(0, 8)}</span>
                     <span>•</span>
                     <span className="flex items-center gap-1">
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
