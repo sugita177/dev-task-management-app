@@ -44,3 +44,32 @@ export const taskApi = {
     return res.json();
   },
 };
+
+export interface Project {
+  id: string;
+  name: string;
+  isArchived: boolean;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export const projectApi = {
+  async list(): Promise<Project[]> {
+    const res = await fetch(`${API_BASE_URL}/projects`);
+    if (!res.ok) throw new Error('Failed to fetch projects');
+    return res.json();
+  },
+};
+
+export const userApi = {
+  async list(): Promise<User[]> {
+    const res = await fetch(`${API_BASE_URL}/users`);
+    if (!res.ok) throw new Error('Failed to fetch users');
+    return res.json();
+  },
+};
+

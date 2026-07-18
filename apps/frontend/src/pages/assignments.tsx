@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { taskApi } from '../api/task-api';
+import { taskApi, projectApi, userApi } from '../api/task-api';
 import type { Task, TaskProgressState } from '../types/task';
 
 // モックユーザーデータ定義 (IDはtask-list.tsxのUUID形式と共通化)
@@ -21,6 +21,37 @@ export default function Assignments() {
     queryKey: ['tasks'],
     queryFn: taskApi.list,
   });
+
+  const { data: rawUsers = mockUsers } = useQuery({
+    queryKey: ['users'],
+    queryFn: userApi.list,
+  });
+
+  const { data: projects = mockProjects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: projectApi.list,
+  });
+
+  const getInitials = (name: string) => name.split(' ').map(n => n[0] || '').join('').toUpperCase().slice(0, 2) || 'U';
+
+  const getRoleLabel = (role: any) => {
+    if (typeof role === 'object' && role) {
+      switch (role.name) {
+        case 'ADMINISTRATOR': return '管理者';
+        case 'ENGINEER': return 'エンジニア';
+        case 'BUSINESS': return 'ビジネスサイド';
+        default: return role.name;
+      }
+    }
+    return role || '開発メンバー';
+  };
+
+  const users = rawUsers.map(u => ({
+    ...u,
+    initials: (u as any).initials || getInitials(u.name),
+    role: getRoleLabel((u as any).role),
+    maxHours: (u as any).maxHours || 40,
+  }));
 
   // 未割り当てタスク
   const unassignedTasks = tasks.filter(t => !t.assignedUserId && t.progressState !== 'DONE');
@@ -55,7 +86,7 @@ export default function Assignments() {
           
           {/* 左・中央側：アサイン済みメンバー負荷一覧 (2/3幅) */}
           <div className="lg:col-span-2 space-y-6">
-            {mockUsers.map((user) => {
+            {users.map((user) => {
               // 完了していない、このユーザーにアサインされたタスク
               const userTasks = tasks.filter(t => t.assignedUserId === user.id && t.progressState !== 'DONE');
               // アサイン工数合計値の算出
@@ -99,7 +130,7 @@ export default function Assignments() {
                     {userTasks.length > 0 ? (
                       <div className="space-y-2">
                         {userTasks.map(task => {
-                          const project = mockProjects.find(p => p.id === task.projectId);
+                          const project = projects.find(p => p.id === task.projectId);
                           return (
                             <div key={task.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition">
                               <div className="space-y-0.5 truncate max-w-[70%]">
@@ -135,7 +166,7 @@ export default function Assignments() {
 
             <div className="space-y-3 pt-2">
               {unassignedTasks.map(task => {
-                const project = mockProjects.find(p => p.id === task.projectId);
+                const project = projects.find(p => p.id === task.projectId);
                 return (
                   <div key={task.id} className="p-3.5 rounded-xl border border-rose-100 bg-rose-50/20 hover:bg-rose-50/40 transition-colors flex flex-col gap-2">
                     <span className="font-bold text-slate-700 text-xs leading-normal">{task.title}</span>
