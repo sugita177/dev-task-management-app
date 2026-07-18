@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { taskApi } from '../api/task-api';
+import { taskApi, projectApi, userApi } from '../api/task-api';
 import { useTaskStore } from '../store/task-store';
 import type { Task, TaskProgressState, TaskPriority } from '../types/task';
 
@@ -66,6 +66,16 @@ export default function TaskList() {
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ['tasks'],
     queryFn: taskApi.list,
+  });
+
+  const { data: projects = mockProjects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: projectApi.list,
+  });
+
+  const { data: users = mockUsers } = useQuery({
+    queryKey: ['users'],
+    queryFn: userApi.list,
   });
 
   // タスク作成のミューテーション（エラーハンドリングを追加）
@@ -207,7 +217,7 @@ export default function TaskList() {
             className="px-3 py-2 text-sm rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
           >
             <option value="">すべてのプロジェクト</option>
-            {mockProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
 
           {/* 優先度フィルター */}
@@ -261,7 +271,7 @@ export default function TaskList() {
                 {/* カードエリア */}
                 <div className="space-y-3 min-h-[400px]">
                   {columnTasks.map((task) => {
-                    const project = mockProjects.find(p => p.id === task.projectId);
+                    const project = projects.find(p => p.id === task.projectId);
                     return (
                       <div
                         key={task.id}
@@ -336,7 +346,7 @@ export default function TaskList() {
                     onChange={(e) => setNewProj(e.target.value)}
                     className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
                   >
-                    {mockProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <div>
@@ -452,7 +462,7 @@ export default function TaskList() {
                     onChange={(e) => setEditProj(e.target.value)}
                     className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
                   >
-                    {mockProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
                 <div>
@@ -500,7 +510,7 @@ export default function TaskList() {
                     className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
                   >
                     <option value="">未割り当て</option>
-                    {mockUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                   </select>
                 </div>
               </div>

@@ -1,4 +1,6 @@
-import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn } from 'typeorm';
+import { Entity, PrimaryColumn, Column, CreateDateColumn, UpdateDateColumn, DeleteDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { ProjectOrmEntity } from './project.orm-entity';
+import { UserOrmEntity } from './user.orm-entity';
 
 @Entity('tasks')
 export class TaskOrmEntity {
@@ -14,11 +16,19 @@ export class TaskOrmEntity {
   @Column({ name: 'project_id', type: 'uuid' })
   projectId: string;
 
+  @ManyToOne(() => ProjectOrmEntity)
+  @JoinColumn({ name: 'project_id' })
+  project: ProjectOrmEntity;
+
   @Column({ name: 'ticket_id', type: 'uuid', nullable: true })
   ticketId?: string;
 
   @Column({ name: 'assigned_user_id', type: 'uuid', nullable: true })
   assignedUserId?: string;
+
+  @ManyToOne(() => UserOrmEntity, { nullable: true })
+  @JoinColumn({ name: 'assigned_user_id' })
+  assignedUser?: UserOrmEntity;
 
   @Column({ name: 'progress_state_id', type: 'uuid' })
   progressStateId: string;
@@ -58,6 +68,10 @@ export class TaskOrmEntity {
   @Column({ name: 'created_by', type: 'uuid' })
   createdBy: string;
 
+  @ManyToOne(() => UserOrmEntity)
+  @JoinColumn({ name: 'created_by' })
+  creator: UserOrmEntity;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
@@ -67,3 +81,4 @@ export class TaskOrmEntity {
   @DeleteDateColumn({ name: 'deleted_at', nullable: true })
   deletedAt?: Date;
 }
+

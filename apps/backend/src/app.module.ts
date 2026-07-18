@@ -3,6 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TaskOrmEntity } from './infra/entities/task.orm-entity';
+import { RoleOrmEntity } from './infra/entities/role.orm-entity';
+import { UserOrmEntity } from './infra/entities/user.orm-entity';
+import { ProjectOrmEntity } from './infra/entities/project.orm-entity';
+import { SeedService } from './infra/seed/seed.service';
+import { UserController } from './infra/controllers/user.controller';
+import { ProjectController } from './infra/controllers/project.controller';
 import { TasksModule } from './tasks.module';
 
 @Module({
@@ -10,12 +16,12 @@ import { TasksModule } from './tasks.module';
     TypeOrmModule.forRoot({
       type: 'postgres',
       url: process.env.DATABASE_URL || 'postgresql://dev_user:dev_password@localhost:5432/dev_task_db',
-      entities: [TaskOrmEntity],
+      entities: [TaskOrmEntity, RoleOrmEntity, UserOrmEntity, ProjectOrmEntity],
       synchronize: true,
     }),
     TasksModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AppController, UserController, ProjectController],
+  providers: [AppService, SeedService],
 })
-export class AppModule {}
+export class AppModule { }

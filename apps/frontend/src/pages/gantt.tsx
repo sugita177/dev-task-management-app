@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { taskApi } from '../api/task-api';
+import { taskApi, projectApi } from '../api/task-api';
 import type { Task, TaskProgressState } from '../types/task';
 
 // モックプロジェクトデータ（プロジェクト名紐付け用）
@@ -14,6 +14,11 @@ export default function Gantt() {
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ['tasks'],
     queryFn: taskApi.list,
+  });
+
+  const { data: projects = mockProjects } = useQuery({
+    queryKey: ['projects'],
+    queryFn: projectApi.list,
   });
 
   // カレンダー表示範囲の設定（今日から前後15日、計30日間を表示）
@@ -100,7 +105,7 @@ export default function Gantt() {
               {/* グリッドボディ */}
               <div className="divide-y divide-slate-100">
                 {tasks.map((task) => {
-                  const project = mockProjects.find(p => p.id === task.projectId);
+                  const project = projects.find(p => p.id === task.projectId);
                   const progress = getStatusProgress(task.progressState);
 
                   // ガントバーのグリッド位置計算
