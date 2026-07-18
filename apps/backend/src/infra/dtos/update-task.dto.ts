@@ -47,4 +47,9 @@ export class UpdateTaskDto {
   @IsOptional()
   @IsNumber()
   estimatedHours?: number;
+
+  @ApiPropertyOptional({ description: '変更を行ったユーザーID (UUID)' })
+  @IsOptional()
+  @IsUUID()
+  changedBy?: string;
 }
