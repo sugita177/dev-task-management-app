@@ -13,6 +13,11 @@ export class UpdateTaskDto {
   @IsString()
   description?: string;
 
+  @ApiPropertyOptional({ description: 'プロジェクトID (UUID)' })
+  @IsOptional()
+  @IsUUID()
+  projectId?: string;
+
   @ApiPropertyOptional({ description: '担当エンジニアユーザーID (UUID)' })
   @IsOptional()
   @IsUUID()

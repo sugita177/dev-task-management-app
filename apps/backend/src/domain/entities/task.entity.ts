@@ -71,6 +71,7 @@ export class Task {
   public updateBasicInfo(info: {
     title?: string;
     description?: string;
+    projectId?: string;
     assignedUserId?: string;
     categoryId?: string;
     priority?: TaskPriority;
@@ -78,6 +79,7 @@ export class Task {
   }) {
     if (info.title !== undefined) this.props.title = info.title;
     if (info.description !== undefined) this.props.description = info.description;
+    if (info.projectId !== undefined) this.props.projectId = info.projectId;
     if (info.assignedUserId !== undefined) this.props.assignedUserId = info.assignedUserId;
     if (info.categoryId !== undefined) this.props.categoryId = info.categoryId;
     if (info.priority !== undefined) this.props.priority = info.priority;

@@ -53,10 +53,11 @@ describe('UpdateTaskUseCase', () => {
     expect(mockHistoryRepository.save).toHaveBeenCalledTimes(1);
   });
 
-  it('タスクのタイトルや優先度など基本情報を更新し、リポジトリに保存できること', async () => {
+  it('タスクのタイトルや優先度、プロジェクトIDなど基本情報を更新し、リポジトリに保存できること', async () => {
     const dto: UpdateTaskDto = {
       id: 'task-123',
       title: 'Updated Title',
+      projectId: 'proj-new-99',
       priority: TaskPriority.HIGH,
       estimatedHours: 8,
     };
@@ -64,6 +65,7 @@ describe('UpdateTaskUseCase', () => {
     const task = await useCase.execute(dto);
 
     expect(task.title).toBe('Updated Title');
+    expect(task.projectId).toBe('proj-new-99');
     expect(task.priority).toBe(TaskPriority.HIGH);
     expect(task.estimatedHours).toBe(8);
     expect(mockRepository.save).toHaveBeenCalledTimes(1);
