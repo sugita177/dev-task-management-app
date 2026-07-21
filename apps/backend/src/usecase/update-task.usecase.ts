@@ -8,6 +8,7 @@ export interface UpdateTaskDto {
   id: string;
   title?: string;
   description?: string;
+  projectId?: string;
   assignedUserId?: string;
   progressState?: TaskProgressState;
   categoryId?: string;
@@ -64,6 +65,7 @@ export class UpdateTaskUseCase {
     task.updateBasicInfo({
       title: dto.title,
       description: dto.description,
+      projectId: dto.projectId,
       assignedUserId: dto.assignedUserId,
       categoryId: dto.categoryId,
       priority: dto.priority,

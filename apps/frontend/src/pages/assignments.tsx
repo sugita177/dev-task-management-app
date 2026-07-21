@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { taskApi, projectApi, userApi } from '../api/task-api';
 import type { Task, TaskProgressState } from '../types/task';
@@ -15,7 +16,11 @@ const mockProjects = [
   { id: '00000000-0000-0000-0000-000000000203', name: '共通APIサービス' },
 ];
 
+type PeriodFilter = 'THIS_WEEK' | 'THIS_MONTH' | 'ALL';
+
 export default function Assignments() {
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>('THIS_WEEK');
+
   // バックエンドからタスク一覧を取得
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ['tasks'],
@@ -53,12 +58,62 @@ export default function Assignments() {
     maxHours: (u as any).maxHours || 40,
   }));
 
+  // 期間計算ヘルパー
+  const getPeriodRange = (period: PeriodFilter) => {
+    const now = new Date();
+    if (period === 'THIS_WEEK') {
+      const start = new Date(now);
+      const day = start.getDay();
+      const diffToMonday = start.getDate() - day + (day === 0 ? -6 : 1);
+      start.setDate(diffToMonday);
+      start.setHours(0, 0, 0, 0);
+
+      const end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      end.setHours(23, 59, 59, 999);
+      return { start, end, label: '今週 (月〜日)', maxHoursMultiplier: 1 };
+    }
+    if (period === 'THIS_MONTH') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+      return { start, end, label: '今月 (1日〜末日)', maxHoursMultiplier: 4 };
+    }
+    return { start: null, end: null, label: '全期間 (積算工数)', maxHoursMultiplier: 1 };
+  };
+
+  const range = getPeriodRange(selectedPeriod);
+
+  // 期間内での実効割り当て工数を日割計算するロジック
+  const calculateEffectiveTaskHours = (task: Task) => {
+    if (!range.start || !range.end) {
+      return task.estimatedHours || 0;
+    }
+    if (!task.estimatedHours) return 0;
+
+    const taskStart = task.plannedStartDate ? new Date(task.plannedStartDate) : new Date();
+    const taskEnd = task.plannedEndDate ? new Date(task.plannedEndDate) : new Date(taskStart.getTime() + 7 * 86400000);
+
+    const totalDays = Math.max(1, Math.ceil((taskEnd.getTime() - taskStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    const dailyHours = task.estimatedHours / totalDays;
+
+    const overlapStart = new Date(Math.max(taskStart.getTime(), range.start.getTime()));
+    const overlapEnd = new Date(Math.min(taskEnd.getTime(), range.end.getTime()));
+
+    if (overlapStart > overlapEnd) return 0; // 重なりなし
+
+    const overlapDays = Math.max(1, Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    return Math.round(dailyHours * overlapDays * 10) / 10;
+  };
+
   // 未割り当てタスク
   const unassignedTasks = tasks.filter(t => !t.assignedUserId && t.progressState !== 'DONE');
 
-  const getLoadLevel = (hours: number) => {
-    if (hours > 35) return { label: '過負荷 (危険)', color: 'text-rose-600 bg-rose-50 border-rose-200', barColor: 'bg-rose-500' };
-    if (hours >= 20) return { label: '適正 (稼働中)', color: 'text-amber-600 bg-amber-50 border-amber-200', barColor: 'bg-amber-500' };
+  const getLoadLevel = (hours: number, maxCapacity: number) => {
+    if (selectedPeriod === 'ALL') {
+      return { label: 'タスク集計', color: 'text-indigo-600 bg-indigo-50 border-indigo-200', barColor: 'bg-indigo-500' };
+    }
+    if (hours > maxCapacity) return { label: '過負荷 (危険)', color: 'text-rose-600 bg-rose-50 border-rose-200', barColor: 'bg-rose-500' };
+    if (hours >= maxCapacity * 0.5) return { label: '適正 (稼働中)', color: 'text-amber-600 bg-amber-50 border-amber-200', barColor: 'bg-amber-500' };
     return { label: '余裕あり', color: 'text-emerald-600 bg-emerald-50 border-emerald-200', barColor: 'bg-emerald-500' };
   };
 
@@ -73,26 +128,58 @@ export default function Assignments() {
 
   return (
     <div className="space-y-8">
-      {/* 説明パネル */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
-        <h3 className="text-lg font-bold text-slate-800 mb-2">メンバーアサイン状況 (負荷分析)</h3>
-        <p className="text-xs text-slate-500">メンバーごとのアサイン工数の合計値を集計し、リソースの空き状況や過負荷（ボトラーク）を視覚化します。</p>
+      {/* 説明 & 期間選択フィルターパネル */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-bold text-slate-800 mb-1">メンバーアサイン状況 (キャパシティ分析)</h3>
+          <p className="text-xs text-slate-500">
+            選択した期間（日割計算）における各メンバーの稼働負荷を自動解析し、リソースのボトルネックや過負荷を早期検出します。
+          </p>
+        </div>
+
+        {/* 期間切り替えセグメントコントローラー */}
+        <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 self-start md:self-auto">
+          <button
+            onClick={() => setSelectedPeriod('THIS_WEEK')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${selectedPeriod === 'THIS_WEEK' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            今週
+          </button>
+          <button
+            onClick={() => setSelectedPeriod('THIS_MONTH')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${selectedPeriod === 'THIS_MONTH' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            今月
+          </button>
+          <button
+            onClick={() => setSelectedPeriod('ALL')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${selectedPeriod === 'ALL' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            全期間 (総積算)
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="text-center py-20 text-slate-500 font-medium">ロード中...</div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          
+
           {/* 左・中央側：アサイン済みメンバー負荷一覧 (2/3幅) */}
           <div className="lg:col-span-2 space-y-6">
             {users.map((user) => {
-              // 完了していない、このユーザーにアサインされたタスク
               const userTasks = tasks.filter(t => t.assignedUserId === user.id && t.progressState !== 'DONE');
-              // アサイン工数合計値の算出
-              const totalHours = userTasks.reduce((sum, t) => sum + (t.estimatedHours || 0), 0);
-              const load = getLoadLevel(totalHours);
-              const loadPercent = Math.min(100, (totalHours / user.maxHours) * 100);
+              const maxCapacity = user.maxHours * range.maxHoursMultiplier;
+
+              // 期間内の実効アサイン工数の集計
+              const totalHours = Math.round(
+                userTasks.reduce((sum, t) => sum + calculateEffectiveTaskHours(t), 0) * 10
+              ) / 10;
+
+              const load = getLoadLevel(totalHours, maxCapacity);
+              const loadPercent = selectedPeriod === 'ALL'
+                ? Math.min(100, (totalHours / 160) * 100)
+                : Math.min(100, (totalHours / maxCapacity) * 100);
 
               return (
                 <div key={user.id} className="bg-white rounded-2xl border border-slate-200 shadow-xs p-6 space-y-5">
@@ -112,7 +199,11 @@ export default function Assignments() {
                         {load.label}
                       </span>
                       <span className="text-sm font-extrabold text-slate-800">
-                        {totalHours} / {user.maxHours}h
+                        {selectedPeriod === 'ALL' ? (
+                          <>{totalHours}h <span className="text-xs font-normal text-slate-400">(全タスク合計)</span></>
+                        ) : (
+                          <>{totalHours} / {maxCapacity}h <span className="text-xs font-normal text-slate-400">({range.label})</span></>
+                        )}
                       </span>
                     </div>
                   </div>
@@ -126,19 +217,24 @@ export default function Assignments() {
 
                   {/* アサイン中タスクの内訳アコーディオン/リスト */}
                   <div className="pt-4 border-t border-slate-100">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">アサイン中のアクティブタスク ({userTasks.length}件)</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+                      アクティブタスク ({userTasks.length}件)
+                    </p>
                     {userTasks.length > 0 ? (
                       <div className="space-y-2">
                         {userTasks.map(task => {
                           const project = projects.find(p => p.id === task.projectId);
+                          const effectiveHours = calculateEffectiveTaskHours(task);
                           return (
                             <div key={task.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition">
-                              <div className="space-y-0.5 truncate max-w-[70%]">
+                              <div className="space-y-0.5 truncate max-w-[65%]">
                                 <p className="text-sm font-semibold text-slate-700 truncate">{task.title}</p>
                                 <p className="text-[10px] text-slate-400 font-medium">{project?.name || 'タスク管理アプリ'}</p>
                               </div>
                               <div className="flex items-center gap-3">
-                                <span className="text-xs font-bold text-slate-500">{task.estimatedHours || 0}h</span>
+                                <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                                  {effectiveHours}h <span className="text-[9px] text-slate-400 font-normal">/ {task.estimatedHours || 0}h</span>
+                                </span>
                                 {getStatusLabel(task.progressState)}
                               </div>
                             </div>

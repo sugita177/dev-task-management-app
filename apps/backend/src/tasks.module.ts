@@ -48,8 +48,8 @@ import { ListTaskHistoriesUseCase } from './usecase/list-task-histories.usecase'
     },
     {
       provide: CreateTaskUseCase,
-      useFactory: (repo) => new CreateTaskUseCase(repo),
-      inject: ['ITaskRepository'],
+      useFactory: (repo, historyRepo) => new CreateTaskUseCase(repo, historyRepo),
+      inject: ['ITaskRepository', 'ITaskHistoryRepository'],
     },
     {
       provide: UpdateTaskUseCase,

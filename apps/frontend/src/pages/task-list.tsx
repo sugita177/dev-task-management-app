@@ -242,6 +242,10 @@ export default function TaskList() {
   };
 
   const renderHistoryDetails = (history: any) => {
+    if (history.actionType === 'CREATE' || !history.beforePayload) {
+      return 'タスクを起票しました。';
+    }
+
     const changes: string[] = [];
     const before = history.beforePayload || {};
     const after = history.afterPayload || {};
@@ -254,6 +258,9 @@ export default function TaskList() {
         case 'priority': return '優先度';
         case 'estimatedHours': return '見積もり工数';
         case 'assignedUserId': return '担当者';
+        case 'projectId': return 'プロジェクト';
+        case 'categoryId': return 'カテゴリ';
+        case 'ticketId': return 'チケットID';
         case 'plannedStartDate': return '計画開始日';
         case 'plannedEndDate': return '計画終了日';
         default: return key;
@@ -283,13 +290,23 @@ export default function TaskList() {
         const u = users.find((user: any) => user.id === val);
         return u ? u.name : '未割り当て';
       }
+      if (key === 'projectId') {
+        const p = projects.find((proj: any) => proj.id === val);
+        return p ? p.name : '未設定';
+      }
+      if (key === 'categoryId') {
+        const c = mockCategories.find((cat: any) => cat.id === val);
+        return c ? c.name : '未設定';
+      }
       if (key === 'plannedStartDate' || key === 'plannedEndDate') {
-        return val.split('T')[0];
+        return typeof val === 'string' ? val.split('T')[0] : val;
       }
       return String(val);
     };
 
-    Object.keys(before).forEach((key) => {
+    const allKeys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
+
+    allKeys.forEach((key) => {
       if (before[key] !== after[key]) {
         changes.push(
           `${translateKey(key)} を 「${translateValue(key, before[key])}」 から 「${translateValue(key, after[key])}」 に変更しました`
