@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { taskApi, projectApi, userApi } from '../api/task-api';
+import { taskApi, projectApi, userApi, commentApi, workLogApi, historyApi } from '../api/task-api';
 import { useTaskStore } from '../store/task-store';
 import type { Task, TaskProgressState, TaskPriority } from '../types/task';
 
@@ -51,6 +51,13 @@ export default function TaskList() {
   const [editEndDate, setEditEndDate] = useState('');
   const [editAssignee, setEditAssignee] = useState('');
 
+  // 新機能用ローカルステート (タブ、コメント、工数)
+  const [activeTab, setActiveTab] = useState<'info' | 'comments' | 'worklog' | 'history'>('info');
+  const [commentText, setCommentText] = useState('');
+  const [workLogDate, setWorkLogDate] = useState(new Date().toISOString().split('T')[0]);
+  const [workLogHours, setWorkLogHours] = useState<number>(0);
+  const [workLogDesc, setWorkLogDesc] = useState('');
+
   // Zustandストアからフィルター条件を取得
   const {
     keyword,
@@ -94,12 +101,59 @@ export default function TaskList() {
   // タスク更新のミューテーション（エラーハンドリングを追加）
   const updateTaskMutation = useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: any }) => taskApi.update(id, dto),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['histories', variables.id] });
       setSelectedTask(null);
     },
     onError: (error) => {
       alert('タスク更新に失敗しました。\nエラー: ' + error.message);
+    }
+  });
+
+  // コメント・工数・履歴のデータ取得
+  const { data: comments = [] } = useQuery({
+    queryKey: ['comments', selectedTask?.id],
+    queryFn: () => commentApi.list(selectedTask!.id),
+    enabled: !!selectedTask,
+  });
+
+  const { data: workLogs = [] } = useQuery({
+    queryKey: ['workLogs', selectedTask?.id],
+    queryFn: () => workLogApi.list(selectedTask!.id),
+    enabled: !!selectedTask,
+  });
+
+  const { data: histories = [] } = useQuery({
+    queryKey: ['histories', selectedTask?.id],
+    queryFn: () => historyApi.list(selectedTask!.id),
+    enabled: !!selectedTask,
+  });
+
+  // コメント作成のミューテーション
+  const createCommentMutation = useMutation({
+    mutationFn: ({ taskId, userId, content }: { taskId: string; userId: string; content: string }) =>
+      commentApi.create(taskId, userId, content),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['comments', selectedTask?.id] });
+      setCommentText('');
+    },
+    onError: (error: any) => {
+      alert('コメント追加に失敗しました。\nエラー: ' + error.message);
+    }
+  });
+
+  // 工数追加のミューテーション
+  const createWorkLogMutation = useMutation({
+    mutationFn: ({ taskId, userId, loggedDate, hours, description }: { taskId: string; userId: string; loggedDate: string; hours: number; description?: string }) =>
+      workLogApi.create(taskId, userId, loggedDate, hours, description),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workLogs', selectedTask?.id] });
+      setWorkLogHours(0);
+      setWorkLogDesc('');
+    },
+    onError: (error: any) => {
+      alert('工数記録に失敗しました。\nエラー: ' + error.message);
     }
   });
 
@@ -116,6 +170,7 @@ export default function TaskList() {
 
   const handleOpenEditModal = (task: Task) => {
     setSelectedTask(task);
+    setActiveTab('info'); // モーダルを開いたときは基本情報タブにする
     setEditTitle(task.title);
     setEditDesc(task.description || '');
     setEditProj(task.projectId);
@@ -159,8 +214,91 @@ export default function TaskList() {
         plannedStartDate: editStartDate || undefined,
         plannedEndDate: editEndDate || undefined,
         assignedUserId: editAssignee || undefined,
+        changedBy: '00000000-0000-0000-0000-000000000401', // マネージャーによる更新と仮定
       },
     });
+  };
+
+  const handleCommentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTask || !commentText.trim()) return;
+    createCommentMutation.mutate({
+      taskId: selectedTask.id,
+      userId: '00000000-0000-0000-0000-000000000401', // ログインユーザーをSatoshi Managerと仮定
+      content: commentText.trim(),
+    });
+  };
+
+  const handleWorkLogSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTask || workLogHours <= 0) return;
+    createWorkLogMutation.mutate({
+      taskId: selectedTask.id,
+      userId: '00000000-0000-0000-0000-000000000401', // ログインユーザーをSatoshi Managerと仮定
+      loggedDate: workLogDate,
+      hours: workLogHours,
+      description: workLogDesc || undefined,
+    });
+  };
+
+  const renderHistoryDetails = (history: any) => {
+    const changes: string[] = [];
+    const before = history.beforePayload || {};
+    const after = history.afterPayload || {};
+
+    const translateKey = (key: string) => {
+      switch (key) {
+        case 'title': return 'タスク名';
+        case 'description': return '説明';
+        case 'progressState': return 'ステータス';
+        case 'priority': return '優先度';
+        case 'estimatedHours': return '見積もり工数';
+        case 'assignedUserId': return '担当者';
+        case 'plannedStartDate': return '計画開始日';
+        case 'plannedEndDate': return '計画終了日';
+        default: return key;
+      }
+    };
+
+    const translateValue = (key: string, val: any) => {
+      if (val === null || val === undefined || val === '') return '未設定';
+      if (key === 'progressState') {
+        switch (val) {
+          case 'BACKLOG': return '未着手';
+          case 'IN_PROGRESS': return '進行中';
+          case 'IN_REVIEW': return 'レビュー中';
+          case 'DONE': return '完了';
+          default: return val;
+        }
+      }
+      if (key === 'priority') {
+        switch (val) {
+          case 'HIGH': return '高';
+          case 'MEDIUM': return '中';
+          case 'LOW': return '低';
+          default: return val;
+        }
+      }
+      if (key === 'assignedUserId') {
+        const u = users.find((user: any) => user.id === val);
+        return u ? u.name : '未割り当て';
+      }
+      if (key === 'plannedStartDate' || key === 'plannedEndDate') {
+        return val.split('T')[0];
+      }
+      return String(val);
+    };
+
+    Object.keys(before).forEach((key) => {
+      if (before[key] !== after[key]) {
+        changes.push(
+          `${translateKey(key)} を 「${translateValue(key, before[key])}」 から 「${translateValue(key, after[key])}」 に変更しました`
+        );
+      }
+    });
+
+    if (changes.length === 0) return '変更を保存しました。';
+    return changes.join('、 ');
   };
 
   // クライアントサイドでのフィルタリング処理
@@ -428,139 +566,325 @@ export default function TaskList() {
       {/* タスク編集・詳細モーダル */}
       {selectedTask && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-100 animate-scale-up">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl overflow-hidden border border-slate-100 animate-scale-up">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-800">タスク詳細・編集</h3>
               <button onClick={() => setSelectedTask(null)} className="text-slate-400 hover:text-slate-600 transition">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">タスク名</label>
-                <input
-                  type="text"
-                  required
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full px-4 py-2 text-sm rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">説明</label>
-                <textarea
-                  value={editDesc}
-                  onChange={(e) => setEditDesc(e.target.value)}
-                  className="w-full px-4 py-2 text-sm rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 min-h-[80px]"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+
+            {/* タブナビゲーション */}
+            <div className="px-6 bg-slate-50 border-b border-slate-100 flex gap-4 text-xs font-bold text-slate-500 uppercase">
+              <button
+                type="button"
+                onClick={() => setActiveTab('info')}
+                className={`py-3 border-b-2 transition-all ${activeTab === 'info' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-800'}`}
+              >
+                基本情報
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('worklog')}
+                className={`py-3 border-b-2 transition-all ${activeTab === 'worklog' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-800'}`}
+              >
+                実績工数 ({workLogs.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('comments')}
+                className={`py-3 border-b-2 transition-all ${activeTab === 'comments' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-800'}`}
+              >
+                コメント ({comments.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('history')}
+                className={`py-3 border-b-2 transition-all ${activeTab === 'history' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-800'}`}
+              >
+                変更履歴 ({histories.length})
+              </button>
+            </div>
+
+            {/* 基本情報タブ */}
+            {activeTab === 'info' && (
+              <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">プロジェクト</label>
-                  <select
-                    value={editProj}
-                    onChange={(e) => setEditProj(e.target.value)}
-                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
-                  >
-                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">カテゴリ</label>
-                  <select
-                    value={editCat}
-                    onChange={(e) => setEditCat(e.target.value)}
-                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
-                  >
-                    {mockCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">優先度</label>
-                  <select
-                    value={editPriority}
-                    onChange={(e) => setEditPriority(e.target.value as TaskPriority)}
-                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
-                  >
-                    <option value="HIGH">高</option>
-                    <option value="MEDIUM">中</option>
-                    <option value="LOW">低</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">ステータス</label>
-                  <select
-                    value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value as TaskProgressState)}
-                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 font-semibold"
-                  >
-                    <option value="BACKLOG">未着手</option>
-                    <option value="IN_PROGRESS">進行中</option>
-                    <option value="IN_REVIEW">レビュー中</option>
-                    <option value="DONE">完了</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">担当者</label>
-                  <select
-                    value={editAssignee}
-                    onChange={(e) => setEditAssignee(e.target.value)}
-                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
-                  >
-                    <option value="">未割り当て</option>
-                    {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">見積もり時間</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">タスク名</label>
                   <input
-                    type="number"
-                    step="0.5"
-                    value={editEstimate}
-                    onChange={(e) => setEditEstimate(parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
+                    type="text"
+                    required
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full px-4 py-2 text-sm rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">計画開始日</label>
-                  <input
-                    type="date"
-                    value={editStartDate}
-                    onChange={(e) => setEditStartDate(e.target.value)}
-                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">説明</label>
+                  <textarea
+                    value={editDesc}
+                    onChange={(e) => setEditDesc(e.target.value)}
+                    className="w-full px-4 py-2 text-sm rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 min-h-[80px]"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">計画終了日</label>
-                  <input
-                    type="date"
-                    value={editEndDate}
-                    onChange={(e) => setEditEndDate(e.target.value)}
-                    className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">プロジェクト</label>
+                    <select
+                      value={editProj}
+                      onChange={(e) => setEditProj(e.target.value)}
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
+                    >
+                      {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">カテゴリ</label>
+                    <select
+                      value={editCat}
+                      onChange={(e) => setEditCat(e.target.value)}
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
+                    >
+                      {mockCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">優先度</label>
+                    <select
+                      value={editPriority}
+                      onChange={(e) => setEditPriority(e.target.value as TaskPriority)}
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
+                    >
+                      <option value="HIGH">高</option>
+                      <option value="MEDIUM">中</option>
+                      <option value="LOW">低</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">ステータス</label>
+                    <select
+                      value={editStatus}
+                      onChange={(e) => setEditStatus(e.target.value as TaskProgressState)}
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 font-semibold"
+                    >
+                      <option value="BACKLOG">未着手</option>
+                      <option value="IN_PROGRESS">進行中</option>
+                      <option value="IN_REVIEW">レビュー中</option>
+                      <option value="DONE">完了</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">担当者</label>
+                    <select
+                      value={editAssignee}
+                      onChange={(e) => setEditAssignee(e.target.value)}
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
+                    >
+                      <option value="">未割り当て</option>
+                      {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">見積もり時間</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={editEstimate}
+                      onChange={(e) => setEditEstimate(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">計画開始日</label>
+                    <input
+                      type="date"
+                      value={editStartDate}
+                      onChange={(e) => setEditStartDate(e.target.value)}
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">計画終了日</label>
+                    <input
+                      type="date"
+                      value={editEndDate}
+                      onChange={(e) => setEditEndDate(e.target.value)}
+                      className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
+                    />
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTask(null)}
+                    className="px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-800"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updateTaskMutation.isPending}
+                    className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl"
+                  >
+                    {updateTaskMutation.isPending ? '更新中...' : '保存する'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* 実績工数タブ */}
+            {activeTab === 'worklog' && (
+              <div className="p-6 space-y-4">
+                <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <div>
+                    <span className="text-xs font-bold text-slate-500 uppercase">合計実績時間</span>
+                    <p className="text-2xl font-black text-indigo-600">{workLogs.reduce((sum, l) => sum + l.hours, 0)} <span className="text-sm font-normal text-slate-500">時間</span></p>
+                  </div>
+                  {selectedTask.estimatedHours && (
+                    <div className="text-right">
+                      <span className="text-xs font-bold text-slate-500 uppercase">見積もり時間</span>
+                      <p className="text-lg font-bold text-slate-700">{selectedTask.estimatedHours} 時間</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="max-h-[160px] overflow-y-auto space-y-2 border border-slate-100 p-2 rounded-xl">
+                  {workLogs.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-4">工数記録はまだありません。</p>
+                  ) : (
+                    workLogs.map((log) => (
+                      <div key={log.id} className="text-sm bg-white p-3 rounded-lg border border-slate-100 flex justify-between items-start gap-2 shadow-xs">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-slate-700">{log.userName || '開発メンバー'}</span>
+                            <span className="text-xs text-slate-400">{log.loggedDate.split('T')[0]}</span>
+                          </div>
+                          {log.description && <p className="text-xs text-slate-500 mt-1">{log.description}</p>}
+                        </div>
+                        <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg text-xs">{log.hours}h</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <form onSubmit={handleWorkLogSubmit} className="pt-4 border-t border-slate-100 space-y-3">
+                  <h4 className="text-sm font-bold text-slate-800">工数を記録する</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">日付</label>
+                      <input
+                        type="date"
+                        required
+                        value={workLogDate}
+                        onChange={(e) => setWorkLogDate(e.target.value)}
+                        className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1">作業時間 (時間)</label>
+                      <input
+                        type="number"
+                        step="0.25"
+                        min="0.25"
+                        required
+                        value={workLogHours || ''}
+                        onChange={(e) => setWorkLogHours(parseFloat(e.target.value) || 0)}
+                        placeholder="例: 1.5"
+                        className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-500 mb-1">作業内容</label>
+                    <input
+                      type="text"
+                      placeholder="何を行いましたか？ (任意)"
+                      value={workLogDesc}
+                      onChange={(e) => setWorkLogDesc(e.target.value)}
+                      className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200"
+                    />
+                  </div>
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="submit"
+                      disabled={createWorkLogMutation.isPending}
+                      className="px-4 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-50"
+                    >
+                      {createWorkLogMutation.isPending ? '保存中...' : '工数を登録'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* コメントタブ */}
+            {activeTab === 'comments' && (
+              <div className="p-6 space-y-4">
+                <div className="max-h-[220px] overflow-y-auto space-y-3 pr-1">
+                  {comments.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-8">コメントはまだありません。</p>
+                  ) : (
+                    comments.map((comment) => (
+                      <div key={comment.id} className="text-sm bg-slate-50/50 p-3 rounded-2xl border border-slate-100/70">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-bold text-slate-800">{comment.userName || '開発メンバー'}</span>
+                          <span className="text-[10px] text-slate-400">{new Date(comment.createdAt).toLocaleString('ja-JP')}</span>
+                        </div>
+                        <p className="text-slate-600 whitespace-pre-wrap leading-relaxed">{comment.content}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <form onSubmit={handleCommentSubmit} className="pt-4 border-t border-slate-100 space-y-3">
+                  <textarea
+                    required
+                    placeholder="コメントを入力してください..."
+                    rows={2}
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    className="w-full px-4 py-2 text-sm rounded-xl border border-slate-200 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20"
                   />
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={createCommentMutation.isPending}
+                      className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-50"
+                    >
+                      {createCommentMutation.isPending ? '送信中...' : 'コメントを投稿'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* 変更履歴タブ */}
+            {activeTab === 'history' && (
+              <div className="p-6">
+                <div className="max-h-[320px] overflow-y-auto space-y-4 pr-1">
+                  {histories.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-12">変更履歴はありません。</p>
+                  ) : (
+                    histories.map((h) => (
+                      <div key={h.id} className="relative pl-6 border-l-2 border-slate-100 pb-2 last:pb-0">
+                        <div className="absolute -left-[6px] top-1.5 w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-white" />
+                        <div className="text-xs text-slate-400 mb-1">
+                          <span className="font-semibold text-slate-700 mr-2">{h.changedByName || '開発メンバー'}</span>
+                          {new Date(h.changedAt).toLocaleString('ja-JP')}
+                        </div>
+                        <p className="text-sm text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100/50 leading-relaxed">
+                          {renderHistoryDetails(h)}
+                        </p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
-              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSelectedTask(null)}
-                  className="px-4 py-2 text-sm font-semibold text-slate-500 hover:text-slate-800"
-                >
-                  キャンセル
-                </button>
-                <button
-                  type="submit"
-                  disabled={updateTaskMutation.isPending}
-                  className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl"
-                >
-                  {updateTaskMutation.isPending ? '更新中...' : '保存する'}
-                </button>
-              </div>
-            </form>
+            )}
           </div>
         </div>
       )}

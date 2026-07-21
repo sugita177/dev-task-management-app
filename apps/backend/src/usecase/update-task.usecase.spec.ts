@@ -1,10 +1,12 @@
 import { UpdateTaskUseCase, UpdateTaskDto } from './update-task.usecase';
 import { ITaskRepository } from '../domain/repositories/task-repository.interface';
+import { ITaskHistoryRepository } from '../domain/repositories/task-history-repository.interface';
 import { Task, TaskProgressState, TaskPriority } from '../domain/entities/task.entity';
 
 describe('UpdateTaskUseCase', () => {
   let useCase: UpdateTaskUseCase;
   let mockRepository: jest.Mocked<ITaskRepository>;
+  let mockHistoryRepository: jest.Mocked<ITaskHistoryRepository>;
   let existingTask: Task;
 
   beforeEach(() => {
@@ -25,7 +27,13 @@ describe('UpdateTaskUseCase', () => {
       findById: jest.fn().mockResolvedValue(existingTask),
       findAll: jest.fn(),
     };
-    useCase = new UpdateTaskUseCase(mockRepository);
+
+    mockHistoryRepository = {
+      save: jest.fn().mockResolvedValue(undefined),
+      findByTaskId: jest.fn(),
+    };
+
+    useCase = new UpdateTaskUseCase(mockRepository, mockHistoryRepository);
   });
 
   it('タスクのステータスと計画日を更新し、リポジトリに保存できること', async () => {
@@ -42,6 +50,7 @@ describe('UpdateTaskUseCase', () => {
     expect(task.actualStartDate).toBeInstanceOf(Date);
     expect(task.plannedStartDate).toEqual(dto.plannedStartDate);
     expect(mockRepository.save).toHaveBeenCalledTimes(1);
+    expect(mockHistoryRepository.save).toHaveBeenCalledTimes(1);
   });
 
   it('タスクのタイトルや優先度など基本情報を更新し、リポジトリに保存できること', async () => {
@@ -58,6 +67,18 @@ describe('UpdateTaskUseCase', () => {
     expect(task.priority).toBe(TaskPriority.HIGH);
     expect(task.estimatedHours).toBe(8);
     expect(mockRepository.save).toHaveBeenCalledTimes(1);
+    expect(mockHistoryRepository.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('変更がない場合は履歴が保存されないこと', async () => {
+    const dto: UpdateTaskDto = {
+      id: 'task-123',
+    };
+
+    await useCase.execute(dto);
+
+    expect(mockRepository.save).toHaveBeenCalledTimes(1);
+    expect(mockHistoryRepository.save).not.toHaveBeenCalled();
   });
 
   it('存在しないタスクIDを指定した場合はエラーになること', async () => {

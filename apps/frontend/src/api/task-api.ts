@@ -1,4 +1,4 @@
-import type { Task, CreateTaskDto, UpdateTaskDto } from '../types/task';
+import type { Task, CreateTaskDto, UpdateTaskDto, Comment, WorkLog, TaskHistory, Project, User } from '../types/task';
 
 // 環境変数 VITE_API_BASE_URL があれば使用し、無ければローカルホストをデフォルトとする
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
@@ -45,17 +45,50 @@ export const taskApi = {
   },
 };
 
-export interface Project {
-  id: string;
-  name: string;
-  isArchived: boolean;
-}
+export const commentApi = {
+  async list(taskId: string): Promise<Comment[]> {
+    const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/comments`);
+    if (!res.ok) throw new Error('Failed to fetch comments');
+    return res.json();
+  },
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-}
+  async create(taskId: string, userId: string, content: string): Promise<Comment> {
+    const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, content }),
+    });
+    if (!res.ok) throw new Error('Failed to create comment');
+    return res.json();
+  },
+};
+
+export const workLogApi = {
+  async list(taskId: string): Promise<WorkLog[]> {
+    const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/work-logs`);
+    if (!res.ok) throw new Error('Failed to fetch work logs');
+    return res.json();
+  },
+
+  async create(taskId: string, userId: string, loggedDate: string, hours: number, description?: string): Promise<WorkLog> {
+    const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/work-logs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, loggedDate, hours, description }),
+    });
+    if (!res.ok) throw new Error('Failed to create work log');
+    return res.json();
+  },
+};
+
+export const historyApi = {
+  async list(taskId: string): Promise<TaskHistory[]> {
+    const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/histories`);
+    if (!res.ok) throw new Error('Failed to fetch histories');
+    return res.json();
+  },
+};
+
 
 export const projectApi = {
   async list(): Promise<Project[]> {

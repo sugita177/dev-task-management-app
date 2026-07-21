@@ -6,6 +6,9 @@ import { TaskOrmEntity } from './infra/entities/task.orm-entity';
 import { RoleOrmEntity } from './infra/entities/role.orm-entity';
 import { UserOrmEntity } from './infra/entities/user.orm-entity';
 import { ProjectOrmEntity } from './infra/entities/project.orm-entity';
+import { CommentOrmEntity } from './infra/entities/comment.orm-entity';
+import { WorkLogOrmEntity } from './infra/entities/work-log.orm-entity';
+import { TaskHistoryOrmEntity } from './infra/entities/task-history.orm-entity';
 import { SeedService } from './infra/seed/seed.service';
 import { UserController } from './infra/controllers/user.controller';
 import { ProjectController } from './infra/controllers/project.controller';
@@ -16,7 +19,15 @@ import { TasksModule } from './tasks.module';
     TypeOrmModule.forRoot({
       type: 'postgres',
       url: process.env.DATABASE_URL || 'postgresql://dev_user:dev_password@localhost:5432/dev_task_db',
-      entities: [TaskOrmEntity, RoleOrmEntity, UserOrmEntity, ProjectOrmEntity],
+      entities: [
+        TaskOrmEntity,
+        RoleOrmEntity,
+        UserOrmEntity,
+        ProjectOrmEntity,
+        CommentOrmEntity,
+        WorkLogOrmEntity,
+        TaskHistoryOrmEntity,
+      ],
       synchronize: true,
     }),
     TasksModule,
@@ -24,4 +35,4 @@ import { TasksModule } from './tasks.module';
   controllers: [AppController, UserController, ProjectController],
   providers: [AppService, SeedService],
 })
-export class AppModule { }
+export class AppModule {}
