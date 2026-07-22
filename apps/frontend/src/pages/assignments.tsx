@@ -43,6 +43,7 @@ export default function Assignments() {
     if (typeof role === 'object' && role) {
       switch (role.name) {
         case 'ADMINISTRATOR': return '管理者';
+        case 'ENGINEERING_MANAGER': return 'マネージャー';
         case 'ENGINEER': return 'エンジニア';
         case 'BUSINESS': return 'ビジネスサイド';
         default: return role.name;
