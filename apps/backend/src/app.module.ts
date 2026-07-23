@@ -19,6 +19,7 @@ import { TasksModule } from './tasks.module';
     TypeOrmModule.forRoot({
       type: 'postgres',
       url: process.env.DATABASE_URL || 'postgresql://dev_user:dev_password@localhost:5432/dev_task_db',
+      ssl: false,
       entities: [
         TaskOrmEntity,
         RoleOrmEntity,
