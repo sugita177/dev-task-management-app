@@ -398,6 +398,7 @@ export default function TaskList() {
         </div>
 
         <button
+          data-testid="create-task-button"
           onClick={() => setIsCreateModalOpen(true)}
           className="flex items-center gap-2 py-2.5 px-5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-98 transition rounded-xl shadow-md shadow-indigo-600/10"
         >
@@ -476,6 +477,7 @@ export default function TaskList() {
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">タスク名</label>
                 <input
+                  data-testid="task-title-input"
                   type="text"
                   required
                   placeholder="例: フロントエンドのAPI繋ぎ込み"
@@ -487,6 +489,7 @@ export default function TaskList() {
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">説明</label>
                 <textarea
+                  data-testid="task-desc-input"
                   placeholder="詳細な要件やメモ..."
                   value={newDesc}
                   onChange={(e) => setNewDesc(e.target.value)}
@@ -568,6 +571,7 @@ export default function TaskList() {
                   キャンセル
                 </button>
                 <button
+                  data-testid="submit-create-task-button"
                   type="submit"
                   disabled={createTaskMutation.isPending}
                   className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl"
@@ -695,6 +699,7 @@ export default function TaskList() {
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">担当者</label>
                     <select
+                      data-testid="edit-assignee-select"
                       value={editAssignee}
                       onChange={(e) => setEditAssignee(e.target.value)}
                       className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200"
@@ -743,6 +748,7 @@ export default function TaskList() {
                     キャンセル
                   </button>
                   <button
+                    data-testid="submit-edit-task-button"
                     type="submit"
                     disabled={updateTaskMutation.isPending}
                     className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl"

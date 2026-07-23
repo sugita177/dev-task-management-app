@@ -23,6 +23,7 @@ export class SeedService implements OnApplicationBootstrap {
       { id: '00000000-0000-0000-0000-000000000501', name: 'ADMINISTRATOR' },
       { id: '00000000-0000-0000-0000-000000000502', name: 'ENGINEER' },
       { id: '00000000-0000-0000-0000-000000000503', name: 'BUSINESS' },
+      { id: '00000000-0000-0000-0000-000000000504', name: 'ENGINEERING_MANAGER' },
     ];
 
     for (const role of roles) {
@@ -42,7 +43,7 @@ export class SeedService implements OnApplicationBootstrap {
         email: 'satoshi@example.com',
         passwordHash: 'dummy_hash', // In MVP, dummy password is fine
         name: 'Satoshi Manager',
-        roleId: '00000000-0000-0000-0000-000000000501', // ADMINISTRATOR
+        roleId: '00000000-0000-0000-0000-000000000504', // ENGINEERING_MANAGER
       },
       {
         id: '00000000-0000-0000-0000-000000000402',

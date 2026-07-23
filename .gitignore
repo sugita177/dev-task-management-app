@@ -30,6 +30,12 @@ dist/
 build/
 coverage/
 
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 # Misc
 .DS_Store
 Thumbs.db

@@ -1,7 +1,7 @@
 import type { Task, CreateTaskDto, UpdateTaskDto, Comment, WorkLog, TaskHistory, Project, User } from '../types/task';
 
-// 環境変数 VITE_API_BASE_URL があれば使用し、無ければローカルホストをデフォルトとする
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+// 環境変数 VITE_API_BASE_URL があれば優先使用し、開発環境ではプロキシ経由の相対パス /api をデフォルトとする
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const taskApi = {
   async list(): Promise<Task[]> {
