@@ -1,9 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Cookieパーサーミドルウェアの追加
+  app.use(cookieParser());
 
   // グローバルプレフィックスの設定 (例: /api/tasks)
   app.setGlobalPrefix('api');
