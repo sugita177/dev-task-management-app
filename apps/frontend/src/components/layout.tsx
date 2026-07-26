@@ -1,7 +1,23 @@
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../store/auth-store';
+import { authApi } from '../api/task-api';
+import { removeCookie } from '../utils/cookie-utils';
 
 export default function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout: storeLogout } = useAuthStore();
+
+  const handleLogout = () => {
+    // 1. 即座にフロントエンドの状態をクリア
+    storeLogout();
+    // 2. 即座に is_logged_in Cookie をクライアント側で破棄
+    removeCookie('is_logged_in');
+    // 3. 即座にログイン画面へ遷移
+    navigate('/login');
+    // 4. バックグラウンドで非同期にログアウトAPIを呼ぶ（エラーは握りつぶし画面遷移を妨げない）
+    authApi.logout().catch(() => {});
+  };
 
   const menuItems = [
     { path: '/', label: 'ダッシュボード', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -10,6 +26,13 @@ export default function Layout() {
     { path: '/assignments', label: 'アサイン状況', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
     { path: '/admin/users', label: 'ユーザー管理', icon: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' },
   ];
+
+  const getInitials = (name: string) => {
+    if (!name) return 'U';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  };
 
   return (
     <div className="flex h-screen bg-slate-50 text-slate-800 font-sans">
@@ -28,11 +51,11 @@ export default function Layout() {
         {/* ユーザープロフィール概要 */}
         <div className="p-5 border-b border-slate-800/50 flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center border-2 border-indigo-500 shadow-inner">
-            <span className="font-bold text-sm">SM</span>
+            <span className="font-bold text-sm">{user ? getInitials(user.name) : 'U'}</span>
           </div>
           <div className="overflow-hidden">
-            <p className="text-sm font-semibold truncate text-slate-200">Satoshi Manager</p>
-            <p className="text-xs text-indigo-400 font-medium">プロジェクトマネージャー</p>
+            <p className="text-sm font-semibold truncate text-slate-200">{user?.name || 'ゲスト'}</p>
+            <p className="text-xs text-indigo-400 font-medium">{user?.roleName || '未認証'}</p>
           </div>
         </div>
 
@@ -67,15 +90,15 @@ export default function Layout() {
 
         {/* ログアウトエリア */}
         <div className="p-4 border-t border-slate-800/80">
-          <Link
-            to="/login"
+          <button
+            onClick={handleLogout}
             className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl text-sm font-semibold bg-slate-800/80 hover:bg-red-950/40 hover:text-red-400 hover:border-red-900 border border-slate-700 transition-all duration-200"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 01-3-3h4a3 3 0 013 3v1" />
             </svg>
             ログアウト
-          </Link>
+          </button>
         </div>
       </aside>
 

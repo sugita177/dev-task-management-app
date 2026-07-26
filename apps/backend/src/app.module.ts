@@ -13,6 +13,7 @@ import { SeedService } from './infra/seed/seed.service';
 import { UserController } from './infra/controllers/user.controller';
 import { ProjectController } from './infra/controllers/project.controller';
 import { TasksModule } from './tasks.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { TasksModule } from './tasks.module';
       synchronize: true,
     }),
     TasksModule,
+    AuthModule,
   ],
   controllers: [AppController, UserController, ProjectController],
   providers: [AppService, SeedService],

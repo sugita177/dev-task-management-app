@@ -1,5 +1,6 @@
 import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { RoleOrmEntity } from '../entities/role.orm-entity';
 import { UserOrmEntity } from '../entities/user.orm-entity';
 import { ProjectOrmEntity } from '../entities/project.orm-entity';
@@ -37,36 +38,42 @@ export class SeedService implements OnApplicationBootstrap {
   }
 
   private async seedUsers() {
+    const passwordHash = await bcrypt.hash('password123', 10);
+
     const users = [
       {
         id: '00000000-0000-0000-0000-000000000401',
         email: 'satoshi@example.com',
-        passwordHash: 'dummy_hash', // In MVP, dummy password is fine
+        passwordHash,
         name: 'Satoshi Manager',
         roleId: '00000000-0000-0000-0000-000000000504', // ENGINEERING_MANAGER
       },
       {
         id: '00000000-0000-0000-0000-000000000402',
         email: 'tanaka@example.com',
-        passwordHash: 'dummy_hash',
+        passwordHash,
         name: '田中 太郎',
         roleId: '00000000-0000-0000-0000-000000000502', // ENGINEER
       },
       {
         id: '00000000-0000-0000-0000-000000000403',
         email: 'suzuki@example.com',
-        passwordHash: 'dummy_hash',
+        passwordHash,
         name: '鈴木 一郎',
         roleId: '00000000-0000-0000-0000-000000000502', // ENGINEER
       },
     ];
 
     for (const user of users) {
-      const exists = await this.entityManager.findOneBy(UserOrmEntity, { id: user.id });
-      if (!exists) {
+      const existingUser = await this.entityManager.findOneBy(UserOrmEntity, { id: user.id });
+      if (!existingUser) {
         this.logger.log(`Seeding user: ${user.name}`);
         const entity = this.entityManager.create(UserOrmEntity, user);
         await this.entityManager.save(UserOrmEntity, entity);
+      } else if (!existingUser.passwordHash || !existingUser.passwordHash.startsWith('$2')) {
+        this.logger.log(`Updating password hash for user: ${user.name}`);
+        existingUser.passwordHash = passwordHash;
+        await this.entityManager.save(UserOrmEntity, existingUser);
       }
     }
   }
