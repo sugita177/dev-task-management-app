@@ -1,21 +1,43 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { authApi } from '../api/task-api';
+import { useAuthStore } from '../store/auth-store';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const setUser = useAuthStore((state) => state.setUser);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const from = location.state?.from?.pathname || '/';
+
+  const handleLogin = async (loginEmail: string, loginPass: string) => {
+    setIsLoading(true);
+    setErrorMessage('');
+    try {
+      const { user } = await authApi.login(loginEmail, loginPass);
+      setUser(user);
+      navigate(from, { replace: true });
+    } catch (err: any) {
+      setErrorMessage(err.message || 'ログインに失敗しました。認証情報をご確認ください。');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    handleLogin(email, password);
+  };
 
-    // MVP用のダミーログイン処理 (1秒後にダッシュボードへ遷移)
-    setTimeout(() => {
-      setIsLoading(false);
-      navigate('/');
-    }, 800);
+  const handleDemoLogin = (demoEmail: string) => {
+    setEmail(demoEmail);
+    setPassword('password123');
+    handleLogin(demoEmail, 'password123');
   };
 
   return (
@@ -54,19 +76,25 @@ export default function Login() {
         {/* 右側：ログインフォーム */}
         <div className="w-full md:w-1/2 p-12 flex flex-col justify-center">
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-white tracking-wide">ログイン</h2>
+            <h2 className="text-2xl font-bold text-white tracking-wide">サインイン</h2>
             <p className="text-xs text-slate-400 mt-2">
               アカウント情報を入力してサービスをご利用ください。
             </p>
           </div>
 
+          {errorMessage && (
+            <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold leading-relaxed">
+              ⚠️ {errorMessage}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">メールアドレス / ユーザーID</label>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">メールアドレス</label>
               <input
-                type="text"
+                type="email"
                 required
-                placeholder="pm@example.com"
+                placeholder="satoshi@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all duration-200"
@@ -76,7 +104,6 @@ export default function Login() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">パスワード</label>
-                <a href="#" className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition">パスワードをお忘れですか？</a>
               </div>
               <input
                 type="password"
@@ -86,17 +113,6 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all duration-200"
               />
-            </div>
-
-            <div className="flex items-center">
-              <input
-                id="remember_me"
-                type="checkbox"
-                className="h-4 w-4 rounded-sm border-slate-800 bg-slate-950/60 text-indigo-600 focus:ring-indigo-500/30 focus:ring-offset-slate-900"
-              />
-              <label htmlFor="remember_me" className="ml-2.5 block text-xs font-semibold text-slate-400">
-                ログイン状態を維持する
-              </label>
             </div>
 
             <button
@@ -112,10 +128,32 @@ export default function Login() {
             </button>
           </form>
 
-          {/* デモ用アカウントのヒント */}
-          <div className="mt-8 p-4 bg-slate-950/40 border border-slate-800/80 rounded-2xl text-[11px] text-slate-500 space-y-1">
-            <p className="font-bold text-slate-400">💡 デモ用ログインアカウント (入力不要ですぐ試せます)</p>
-            <p>サインインボタンをクリックすると直接デモ画面へ遷移します。</p>
+          {/* デモ用アカウント選択 */}
+          <div className="mt-8 p-4 bg-slate-950/40 border border-slate-800/80 rounded-2xl space-y-2">
+            <p className="text-[11px] font-bold text-slate-400">💡 ワンクリック・デモログイン (パスワード: password123)</p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => handleDemoLogin('satoshi@example.com')}
+                className="px-3 py-1.5 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/30 transition"
+              >
+                Satoshi Manager (EM)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDemoLogin('tanaka@example.com')}
+                className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/30 transition"
+              >
+                田中 太郎 (Engineer)
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDemoLogin('suzuki@example.com')}
+                className="px-3 py-1.5 rounded-lg bg-violet-500/20 border border-violet-500/30 text-violet-300 text-xs font-semibold hover:bg-violet-500/30 transition"
+              >
+                鈴木 一郎 (Engineer)
+              </button>
+            </div>
           </div>
         </div>
 

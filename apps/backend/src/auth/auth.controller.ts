@@ -14,12 +14,21 @@ export class AuthController {
     const validUser = await this.authService.validateUser(dto.email, dto.password);
     const { accessToken, user } = await this.authService.login(validUser);
 
-    res.cookie('access_token', accessToken, {
-      httpOnly: true,
-      sameSite: 'lax',
+    const cookieOptions = {
+      sameSite: 'lax' as const,
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 24 * 60 * 60 * 1000, // 1 day
+      maxAge: 8 * 60 * 60 * 1000, // 8 hours
       path: '/',
+    };
+
+    res.cookie('access_token', accessToken, {
+      ...cookieOptions,
+      httpOnly: true,
+    });
+
+    res.cookie('is_logged_in', 'true', {
+      ...cookieOptions,
+      httpOnly: false,
     });
 
     return { user };
@@ -28,9 +37,8 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('access_token', {
-      path: '/',
-    });
+    res.clearCookie('access_token', { path: '/' });
+    res.clearCookie('is_logged_in', { path: '/' });
     return { message: 'ログアウトしました。' };
   }
 

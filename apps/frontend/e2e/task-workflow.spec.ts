@@ -2,6 +2,18 @@ import { test, expect } from '@playwright/test';
 
 test.describe('DevTaskPro E2E Workflows', () => {
 
+  test.beforeEach(async ({ page }) => {
+    // 1. ログイン画面へアクセス
+    await page.goto('/login');
+
+    // 2. Satoshi Manager のデモログインボタンをクリックしてログイン
+    const demoBtn = page.getByRole('button', { name: /Satoshi Manager/i });
+    if (await demoBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await demoBtn.click();
+      await expect(page).not.toHaveURL(/\/login/, { timeout: 10000 });
+    }
+  });
+
   test('新規タスクを作成し、詳細モーダルで起票履歴ログが確認できること (getByTestId使用)', async ({ page }) => {
     // 1. かんばん（タスク一覧）画面へ移動
     await page.goto('/tasks');

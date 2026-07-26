@@ -1,17 +1,57 @@
 import type { Task, CreateTaskDto, UpdateTaskDto, Comment, WorkLog, TaskHistory, Project, User } from '../types/task';
 
-// 環境変数 VITE_API_BASE_URL があれば優先使用し、開発環境ではプロキシ経由の相対パス /api をデフォルトとする
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  roleId: string;
+  roleName: string;
+}
+
+export const authApi = {
+  async login(email: string, password: string): Promise<{ user: AuthUser }> {
+    const res = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, password }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || 'ログインに失敗しました。');
+    }
+    return res.json();
+  },
+
+  async logout(): Promise<void> {
+    await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+  },
+
+  async me(): Promise<AuthUser> {
+    const res = await fetch(`${API_BASE_URL}/auth/me`, {
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      throw new Error('Unauthenticated');
+    }
+    return res.json();
+  },
+};
 
 export const taskApi = {
   async list(): Promise<Task[]> {
-    const res = await fetch(`${API_BASE_URL}/tasks`);
+    const res = await fetch(`${API_BASE_URL}/tasks`, { credentials: 'include' });
     if (!res.ok) throw new Error('Failed to fetch tasks');
     return res.json();
   },
 
   async get(id: string): Promise<Task> {
-    const res = await fetch(`${API_BASE_URL}/tasks/${id}`);
+    const res = await fetch(`${API_BASE_URL}/tasks/${id}`, { credentials: 'include' });
     if (!res.ok) throw new Error(`Failed to fetch task ${id}`);
     return res.json();
   },
@@ -20,6 +60,7 @@ export const taskApi = {
     const res = await fetch(`${API_BASE_URL}/tasks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(dto),
     });
     if (!res.ok) {
@@ -34,6 +75,7 @@ export const taskApi = {
     const res = await fetch(`${API_BASE_URL}/tasks/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(dto),
     });
     if (!res.ok) {
@@ -47,7 +89,7 @@ export const taskApi = {
 
 export const commentApi = {
   async list(taskId: string): Promise<Comment[]> {
-    const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/comments`);
+    const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/comments`, { credentials: 'include' });
     if (!res.ok) throw new Error('Failed to fetch comments');
     return res.json();
   },
@@ -56,6 +98,7 @@ export const commentApi = {
     const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ userId, content }),
     });
     if (!res.ok) throw new Error('Failed to create comment');
@@ -65,7 +108,7 @@ export const commentApi = {
 
 export const workLogApi = {
   async list(taskId: string): Promise<WorkLog[]> {
-    const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/work-logs`);
+    const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/work-logs`, { credentials: 'include' });
     if (!res.ok) throw new Error('Failed to fetch work logs');
     return res.json();
   },
@@ -74,6 +117,7 @@ export const workLogApi = {
     const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/work-logs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ userId, loggedDate, hours, description }),
     });
     if (!res.ok) throw new Error('Failed to create work log');
@@ -83,16 +127,15 @@ export const workLogApi = {
 
 export const historyApi = {
   async list(taskId: string): Promise<TaskHistory[]> {
-    const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/histories`);
+    const res = await fetch(`${API_BASE_URL}/tasks/${taskId}/histories`, { credentials: 'include' });
     if (!res.ok) throw new Error('Failed to fetch histories');
     return res.json();
   },
 };
 
-
 export const projectApi = {
   async list(): Promise<Project[]> {
-    const res = await fetch(`${API_BASE_URL}/projects`);
+    const res = await fetch(`${API_BASE_URL}/projects`, { credentials: 'include' });
     if (!res.ok) throw new Error('Failed to fetch projects');
     return res.json();
   },
@@ -100,9 +143,8 @@ export const projectApi = {
 
 export const userApi = {
   async list(): Promise<User[]> {
-    const res = await fetch(`${API_BASE_URL}/users`);
+    const res = await fetch(`${API_BASE_URL}/users`, { credentials: 'include' });
     if (!res.ok) throw new Error('Failed to fetch users');
     return res.json();
   },
 };
-

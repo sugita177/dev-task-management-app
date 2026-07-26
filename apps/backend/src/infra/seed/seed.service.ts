@@ -70,7 +70,7 @@ export class SeedService implements OnApplicationBootstrap {
         this.logger.log(`Seeding user: ${user.name}`);
         const entity = this.entityManager.create(UserOrmEntity, user);
         await this.entityManager.save(UserOrmEntity, entity);
-      } else if (existingUser.passwordHash === 'dummy_hash') {
+      } else if (!existingUser.passwordHash || !existingUser.passwordHash.startsWith('$2')) {
         this.logger.log(`Updating password hash for user: ${user.name}`);
         existingUser.passwordHash = passwordHash;
         await this.entityManager.save(UserOrmEntity, existingUser);

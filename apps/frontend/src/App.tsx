@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Layout from './components/layout';
+import ProtectedRoute from './components/protected-route';
 import Login from './pages/login';
 import Dashboard from './pages/dashboard';
 import TaskList from './pages/task-list';
@@ -26,8 +27,15 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           
-          {/* 共通ナビゲーション付きのレイアウト */}
-          <Route path="/" element={<Layout />}>
+          {/* 共通ナビゲーション付きの保護ルーティングレイアウト */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Layout />
+              </ProtectedRoute>
+            }
+          >
             <Route index element={<Dashboard />} />
             <Route path="tasks" element={<TaskList />} />
             <Route path="tasks/:id" element={<TaskDetail />} />
