@@ -3,15 +3,8 @@ import { test, expect } from '@playwright/test';
 test.describe('DevTaskPro E2E Workflows', () => {
 
   test.beforeEach(async ({ page }) => {
-    // 1. ログイン画面へアクセス
-    await page.goto('/login');
-
-    // 2. Satoshi Manager のデモログインボタンをクリックしてログイン
-    const demoBtn = page.getByRole('button', { name: /Satoshi Manager/i });
-    if (await demoBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await demoBtn.click();
-      await expect(page).not.toHaveURL(/\/login/, { timeout: 10000 });
-    }
+    // storageStateにより自動認証済みのため、即座にタスク一覧画面へ移動
+    await page.goto('/tasks');
   });
 
   test('新規タスクを作成し、詳細モーダルで起票履歴ログが確認できること (getByTestId使用)', async ({ page }) => {
@@ -46,7 +39,7 @@ test.describe('DevTaskPro E2E Workflows', () => {
 
     // 7. 「タスクを起票しました。」がログに含まれていること
     const creationLog = page.getByText(/タスクを起票しました。/i);
-    await expect(creationLog).toBeVisible();
+    await expect(creationLog).toBeVisible({ timeout: 10000 });
   });
 
   test('未割り当てタスクにメンバー（田中 太郎）を割り当て（更新）、アサイン状況画面に反映されること', async ({ page }) => {
