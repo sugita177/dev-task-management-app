@@ -83,3 +83,11 @@
 * **関連技術仕様**:
   - API: 全体JWT保護、`POST /api/auth/refresh`
   - DB: `organizations`, `refresh_tokens`
+
+---
+
+## 5. E2E テスト・セキュリティに関する将来 TODO
+- [ ] **ロール別 E2E 認証セッションの完全分離 (`storageState` マルチ対応)**
+  - 現在は `Satoshi Manager` の 1 セッションで全テストを実行中。
+  - RBAC（権限管理）実装時に `global-setup.ts` にて `admin.json`, `em.json`, `engineer.json` を個別生成・ファイル保存し、各ロールテストで適切な権限セッションを切り替えてテストする拡張を行う。
+

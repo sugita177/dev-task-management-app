@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
+  globalSetup: './global-setup.ts',
   globalTeardown: './global-teardown.ts',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
@@ -11,6 +12,7 @@ export default defineConfig({
   reporter: 'list',
   use: {
     baseURL: 'http://localhost:5174',
+    storageState: 'playwright/.auth/user.json',
     trace: 'on-first-retry',
     headless: true,
     screenshot: 'only-on-failure',

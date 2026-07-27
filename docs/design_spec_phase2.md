@@ -128,7 +128,9 @@ erDiagram
 基盤からUIへと積み上げるための、最も手戻りが少なくスピーディな開発順序です。
 
 ### 🔹 Step 1: 開発基盤・テストの最適化
-* Playwright E2E テストの Global Setup 化 (`storageState.json`) を行い、CIとローカルテストの実行時間を爆速化する。
+* Playwright E2E テストの Global Setup 化 (`storageState.json`) を行い、CIとローカルテストの実行時間を爆速化する。(完了)
+* [ ] **[TODO: 将来拡張] ロール別 E2E 認証セッションの完全分離 (`storageState` マルチ対応):**
+  現在の共通ログイン（`Satoshi Manager`）から、RBAC権限テスト時に `global-setup.ts` で `admin.json`, `em.json`, `engineer.json` を個別生成し、ロールごとのアクセス制御テストでセッションを切り替えて自動実行する機能拡張。
 
 ### 🔹 Step 2: 全域API認証保護とユーザーID連携 (最重要基盤)
 * リフレッシュトークン機構 (`refresh_tokens` DB、15分寿命設定) のバックエンド・フロントエンド(Axios)実装。
