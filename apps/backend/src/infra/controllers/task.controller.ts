@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Put, Body, Param, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, NotFoundException, BadRequestException, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { CreateTaskUseCase } from '../../usecase/create-task.usecase';
 import { UpdateTaskUseCase } from '../../usecase/update-task.usecase';
 import { GetTaskUseCase } from '../../usecase/get-task.usecase';
@@ -89,6 +90,7 @@ class TaskHistoryResponse {
   }
 }
 
+@UseGuards(JwtAuthGuard)
 @ApiTags('tasks')
 @Controller('tasks')
 export class TaskController {
@@ -107,10 +109,12 @@ export class TaskController {
   @Post()
   @ApiOperation({ summary: 'タスクの作成' })
   @ApiResponse({ status: 201, description: 'タスク作成成功' })
-  async create(@Body() dto: CreateTaskDto) {
+  async create(@Req() req: any, @Body() dto: CreateTaskDto) {
     try {
+      const createdBy = req?.user?.userId || dto.createdBy || '00000000-0000-0000-0000-000000000401';
       const task = await this.createTaskUseCase.execute({
         ...dto,
+        createdBy,
         plannedStartDate: dto.plannedStartDate ? new Date(dto.plannedStartDate) : undefined,
         plannedEndDate: dto.plannedEndDate ? new Date(dto.plannedEndDate) : undefined,
       });
@@ -123,11 +127,13 @@ export class TaskController {
   @Put(':id')
   @ApiOperation({ summary: 'タスクの更新' })
   @ApiResponse({ status: 200, description: 'タスク更新成功' })
-  async update(@Param('id') id: string, @Body() dto: UpdateTaskDto) {
+  async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateTaskDto) {
     try {
+      const changedBy = req?.user?.userId;
       const task = await this.updateTaskUseCase.execute({
         id,
         ...dto,
+        changedBy,
         plannedStartDate: dto.plannedStartDate ? new Date(dto.plannedStartDate) : undefined,
         plannedEndDate: dto.plannedEndDate ? new Date(dto.plannedEndDate) : undefined,
       });
@@ -165,11 +171,13 @@ export class TaskController {
   @Post(':id/comments')
   @ApiOperation({ summary: 'タスクへのコメント追加' })
   @ApiResponse({ status: 201, description: 'コメント作成成功' })
-  async createComment(@Param('id') id: string, @Body() dto: CreateCommentDto) {
+  async createComment(@Req() req: any, @Param('id') id: string, @Body() dto: CreateCommentDto) {
     try {
+      const userId = req?.user?.userId || dto.userId || '00000000-0000-0000-0000-000000000401';
       const comment = await this.createCommentUseCase.execute({
         taskId: id,
         ...dto,
+        userId,
       });
       return CommentResponse.fromDomain(comment);
     } catch (e: any) {
@@ -190,11 +198,12 @@ export class TaskController {
   @Post(':id/work-logs')
   @ApiOperation({ summary: '実績工数の記録追加' })
   @ApiResponse({ status: 201, description: '実績工数記録成功' })
-  async createWorkLog(@Param('id') id: string, @Body() dto: CreateWorkLogDto) {
+  async createWorkLog(@Req() req: any, @Param('id') id: string, @Body() dto: CreateWorkLogDto) {
     try {
+      const userId = req?.user?.userId || dto.userId || '00000000-0000-0000-0000-000000000401';
       const log = await this.createWorkLogUseCase.execute({
         taskId: id,
-        userId: dto.userId,
+        userId,
         loggedDate: new Date(dto.loggedDate),
         hours: dto.hours,
         description: dto.description,

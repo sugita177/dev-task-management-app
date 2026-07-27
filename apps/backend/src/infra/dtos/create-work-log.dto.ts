@@ -2,10 +2,10 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, IsOptional, IsUUID, IsDateString, IsNumber, Min } from 'class-validator';
 
 export class CreateWorkLogDto {
-  @ApiProperty({ description: '作業ユーザーID (UUID)' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ description: '作業ユーザーID (UUID)' })
+  @IsOptional()
   @IsUUID()
-  userId: string;
+  userId?: string;
 
   @ApiProperty({ description: '作業日' })
   @IsNotEmpty()

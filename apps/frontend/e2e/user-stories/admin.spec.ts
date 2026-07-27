@@ -17,4 +17,13 @@ test.describe('ADMINISTRATOR ロール ユーザーストーリー E2Eテスト'
     expect(isLoggedInCookie?.value).toBe('true');
   });
 
+  test('未認証状態での全域保護APIアクセス拒否 (401 Unauthorized)', async ({ page }) => {
+    // クッキーをクリアして未認証（未ログイン）状態にする
+    await page.context().clearCookies();
+    
+    // 保護されたバックエンド API へ直接アクセス
+    const response = await page.request.get('http://localhost:3001/api/tasks');
+    expect(response.status()).toBe(401);
+  });
+
 });

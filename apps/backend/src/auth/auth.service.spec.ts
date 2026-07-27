@@ -86,4 +86,23 @@ describe('AuthService', () => {
       expect(result.user.name).toEqual('Test User');
     });
   });
+
+  describe('getProfile', () => {
+    it('should return user profile by userId', async () => {
+      const mockUser = {
+        id: 'user-1',
+        email: 'test@example.com',
+        name: 'Test User',
+        roleId: 'role-1',
+        role: { name: 'ENGINEER' },
+      };
+
+      (entityManager.findOne as jest.Mock).mockResolvedValue(mockUser);
+
+      const result = await service.getProfile('user-1');
+
+      expect(result.id).toEqual('user-1');
+      expect(result.roleName).toEqual('ENGINEER');
+    });
+  });
 });
