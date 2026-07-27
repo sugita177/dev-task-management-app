@@ -53,8 +53,8 @@ export class CreateTaskDto {
   @IsNumber()
   estimatedHours?: number;
 
-  @ApiProperty({ description: '起票者ユーザーID (UUID)' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ description: '起票者ユーザーID (UUID)' })
+  @IsOptional()
   @IsUUID()
-  createdBy: string;
+  createdBy?: string;
 }

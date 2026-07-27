@@ -86,8 +86,11 @@
 
 ---
 
-## 5. E2E テスト・セキュリティに関する将来 TODO
-- [ ] **ロール別 E2E 認証セッションの完全分離 (`storageState` マルチ対応)**
-  - 現在は `Satoshi Manager` の 1 セッションで全テストを実行中。
+## 5. 認証・認可・E2E セキュリティに関する将来 TODO
+- [ ] **フロントエンド Axios 401 インターセプター (15分自動トークン更新)** 【Step 3 にて実施】
+  - アクセストークン切れ（401）検知時に、自動で `/api/auth/refresh` を呼んでトークンを再取得し、ユーザーの手を煩わせずにシームレスに通信をリトライする基盤の実装。
+- [ ] **認可 (Authorization / RolesGuard) の実装** 【Step 6 にて実施】
+  - NestJS に `@Roles('ADMINISTRATOR')` などの `RolesGuard` を導入し、ロールに応じた画面アクセス制限・操作制限を実施する。
+- [ ] **ロール別 E2E 認証セッションの完全分離 (`storageState` マルチ対応)** 【Step 6 の RBAC 実装時に実施】
   - RBAC（権限管理）実装時に `global-setup.ts` にて `admin.json`, `em.json`, `engineer.json` を個別生成・ファイル保存し、各ロールテストで適切な権限セッションを切り替えてテストする拡張を行う。
 
