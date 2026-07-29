@@ -8,7 +8,23 @@ export interface AuthUser {
   name: string;
   roleId: string;
   roleName: string;
+  organizationId?: string;
+  organizationName?: string;
 }
+
+export const masterApi = {
+  async getCategories(): Promise<{ id: string; name: string; code: string }[]> {
+    const res = await fetch(`${API_BASE_URL}/categories`, { credentials: 'include' });
+    if (!res.ok) throw new Error('Failed to fetch categories');
+    return res.json();
+  },
+
+  async getOrganizations(): Promise<{ id: string; name: string; code: string }[]> {
+    const res = await fetch(`${API_BASE_URL}/organizations`, { credentials: 'include' });
+    if (!res.ok) throw new Error('Failed to fetch organizations');
+    return res.json();
+  },
+};
 
 export const authApi = {
   async login(email: string, password: string): Promise<{ user: AuthUser }> {

@@ -118,8 +118,13 @@ erDiagram
 * **コメント機能 & 添付ファイル:** タスク内チャットとエビデンス画像（S3等のストレージ想定）の保存。
 * **チャットツール連携 (Slack / Teams):** Webhook等を用いた、タスク状態変更時（レビュー待ち・完了時）の自動通知機能。
 
-### 5.3. 組織（チーム）マスタ API化
+### 5.3. 組織（社内チーム）マスタ API化と管理者統制
 * 現在ハードコードされている `layout.tsx` のヘッダー名や、フロントエンドで持つ `mockCategories` を完全に撤廃し、`GET /api/auth/me` からの `organizationName` 取得および `GET /api/categories` に置き換える。
+* **[管理者統制] 組織マスタ管理 API (`/api/organizations`):**
+  * `GET /api/organizations`: チーム一覧取得（全ログインユーザー）
+  * `POST /api/organizations`: 新規チーム作成（`ADMINISTRATOR` ロール専用）
+  * `PUT /api/organizations/:id`: チーム名・設定編集（`ADMINISTRATOR` ロール専用）
+  * `DELETE /api/organizations/:id`: チーム削除（`ADMINISTRATOR` ロール専用）
 
 ---
 

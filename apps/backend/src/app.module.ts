@@ -9,9 +9,13 @@ import { ProjectOrmEntity } from './infra/entities/project.orm-entity';
 import { CommentOrmEntity } from './infra/entities/comment.orm-entity';
 import { WorkLogOrmEntity } from './infra/entities/work-log.orm-entity';
 import { TaskHistoryOrmEntity } from './infra/entities/task-history.orm-entity';
+import { OrganizationOrmEntity } from './infra/entities/organization.orm-entity';
+import { CategoryOrmEntity } from './infra/entities/category.orm-entity';
 import { SeedService } from './infra/seed/seed.service';
 import { UserController } from './infra/controllers/user.controller';
 import { ProjectController } from './infra/controllers/project.controller';
+import { OrganizationController } from './infra/controllers/organization.controller';
+import { CategoryController } from './infra/controllers/category.controller';
 import { TasksModule } from './tasks.module';
 import { AuthModule } from './auth/auth.module';
 
@@ -29,13 +33,21 @@ import { AuthModule } from './auth/auth.module';
         CommentOrmEntity,
         WorkLogOrmEntity,
         TaskHistoryOrmEntity,
+        OrganizationOrmEntity,
+        CategoryOrmEntity,
       ],
       synchronize: true,
     }),
     TasksModule,
     AuthModule,
   ],
-  controllers: [AppController, UserController, ProjectController],
+  controllers: [
+    AppController,
+    UserController,
+    ProjectController,
+    OrganizationController,
+    CategoryController,
+  ],
   providers: [AppService, SeedService],
 })
 export class AppModule {}
