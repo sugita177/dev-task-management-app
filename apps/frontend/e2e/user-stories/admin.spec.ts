@@ -15,6 +15,10 @@ test.describe('ADMINISTRATOR ロール ユーザーストーリー E2Eテスト'
     const isLoggedInCookie = cookies.find(c => c.name === 'is_logged_in');
     expect(isLoggedInCookie).toBeDefined();
     expect(isLoggedInCookie?.value).toBe('true');
+
+    // ヘッダーに動的組織名（開発第一チーム）が表示されていることの確認
+    const orgNameBadge = page.getByText(/開発第一チーム/i);
+    await expect(orgNameBadge).toBeVisible();
   });
 
   test('未認証状態での全域保護APIアクセス拒否 (401 Unauthorized)', async ({ page }) => {

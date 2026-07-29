@@ -122,7 +122,7 @@ export default function Layout() {
             <div className="w-px h-6 bg-slate-200"></div>
             {/* 組織情報 */}
             <span className="text-sm font-semibold px-3 py-1 rounded bg-indigo-50 text-indigo-700">
-              開発チームA
+              {user?.organizationName || '開発第一チーム'}
             </span>
           </div>
         </header>

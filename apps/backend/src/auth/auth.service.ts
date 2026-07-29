@@ -4,6 +4,18 @@ import { EntityManager } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { UserOrmEntity } from '../infra/entities/user.orm-entity';
 
+export interface AuthenticatedUser {
+  id: string;
+  email: string;
+  name: string;
+  roleId: string;
+  roleName?: string;
+  organizationId?: string;
+  organizationName?: string;
+  role?: { name: string };
+  organization?: { name: string };
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -11,10 +23,10 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async validateUser(email: string, pass: string): Promise<any> {
+  async validateUser(email: string, pass: string): Promise<AuthenticatedUser> {
     const user = await this.entityManager.findOne(UserOrmEntity, {
       where: { email },
-      relations: { role: true },
+      relations: { role: true, organization: true },
     });
 
     if (!user) {
@@ -30,12 +42,13 @@ export class AuthService {
     return result;
   }
 
-  async login(user: any) {
+  async login(user: AuthenticatedUser) {
     const payload = {
       sub: user.id,
       email: user.email,
       name: user.name,
       roleId: user.roleId,
+      organizationId: user.organizationId,
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -47,15 +60,17 @@ export class AuthService {
         email: user.email,
         name: user.name,
         roleId: user.roleId,
-        roleName: user.role?.name || 'ENGINEER',
+        roleName: user.role?.name || user.roleName || 'ENGINEER',
+        organizationId: user.organizationId || null,
+        organizationName: user.organization?.name || user.organizationName || '開発第一チーム',
       },
     };
   }
 
-  async getProfile(userId: string) {
+  async getProfile(userId: string): Promise<AuthenticatedUser> {
     const user = await this.entityManager.findOne(UserOrmEntity, {
       where: { id: userId },
-      relations: { role: true },
+      relations: { role: true, organization: true },
     });
 
     if (!user) {
@@ -68,6 +83,8 @@ export class AuthService {
       name: user.name,
       roleId: user.roleId,
       roleName: user.role?.name || 'ENGINEER',
+      organizationId: user.organizationId || undefined,
+      organizationName: user.organization?.name || '開発第一チーム',
     };
   }
 }

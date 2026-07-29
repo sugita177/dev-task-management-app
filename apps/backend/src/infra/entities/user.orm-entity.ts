@@ -1,5 +1,6 @@
 import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { RoleOrmEntity } from './role.orm-entity';
+import { OrganizationOrmEntity } from './organization.orm-entity';
 
 @Entity('users')
 export class UserOrmEntity {
@@ -21,4 +22,11 @@ export class UserOrmEntity {
   @ManyToOne(() => RoleOrmEntity)
   @JoinColumn({ name: 'role_id' })
   role: RoleOrmEntity;
+
+  @Column({ name: 'organization_id', type: 'uuid', nullable: true })
+  organizationId?: string;
+
+  @ManyToOne(() => OrganizationOrmEntity, { nullable: true })
+  @JoinColumn({ name: 'organization_id' })
+  organization?: OrganizationOrmEntity;
 }
