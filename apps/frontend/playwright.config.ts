@@ -22,8 +22,8 @@ export default defineConfig({
       command: 'docker compose -f ../../docker-compose.test.yml up db_test -d && npm run start',
       cwd: '../backend',
       url: 'http://localhost:3001/api',
-      reuseExistingServer: !process.env.CI,
-      timeout: 60000,
+      reuseExistingServer: false,
+      timeout: 120000,
       env: {
         PORT: '3001',
         DATABASE_URL: 'postgresql://dev_user:dev_password@localhost:5433/dev_task_db_test?schema=public',
@@ -35,8 +35,8 @@ export default defineConfig({
       command: 'npx vite --port 5174',
       cwd: './',
       url: 'http://localhost:5174',
-      reuseExistingServer: !process.env.CI,
-      timeout: 60000,
+      reuseExistingServer: false,
+      timeout: 120000,
       env: {
         VITE_API_BASE_URL: 'http://localhost:3001/api',
       },
