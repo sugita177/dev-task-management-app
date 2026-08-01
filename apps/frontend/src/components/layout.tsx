@@ -8,15 +8,15 @@ export default function Layout() {
   const navigate = useNavigate();
   const { user, logout: storeLogout } = useAuthStore();
 
-  const handleLogout = () => {
-    // 1. 即座にフロントエンドの状態をクリア
+  const handleLogout = async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // 通信エラー時もログアウト処理を続行
+    }
     storeLogout();
-    // 2. 即座に is_logged_in Cookie をクライアント側で破棄
     removeCookie('is_logged_in');
-    // 3. 即座にログイン画面へ遷移
-    navigate('/login');
-    // 4. バックグラウンドで非同期にログアウトAPIを呼ぶ（エラーは握りつぶし画面遷移を妨げない）
-    authApi.logout().catch(() => {});
+    navigate('/login', { replace: true });
   };
 
   const menuItems = [

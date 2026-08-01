@@ -13,7 +13,6 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const location = useLocation();
 
   useEffect(() => {
-    // If not authenticated and not explicitly loaded yet, check is_logged_in cookie first
     if (!isAuthenticated && isLoading) {
       const hasLoggedInCookie = getCookie('is_logged_in');
       if (!hasLoggedInCookie) {
@@ -35,6 +34,11 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
         });
     }
   }, [isAuthenticated, isLoading, setUser, setIsLoading]);
+
+  // 未ログインかつ Cookie も無い場合は即座に /login へリダイレクト（無駄なAPI呼び出しや画面ちらつきを排除）
+  if (!isAuthenticated && !getCookie('is_logged_in')) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
 
   if (isLoading) {
     return (
