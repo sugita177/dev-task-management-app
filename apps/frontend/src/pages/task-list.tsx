@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { taskApi, projectApi, userApi, commentApi, workLogApi, historyApi } from '../api/task-api';
 import { useTaskStore } from '../store/task-store';
+import { useAuthStore } from '../store/auth-store';
 import type { Task, TaskProgressState, TaskPriority } from '../types/task';
 
 // モックマスターデータ定義（バックエンドのバリデーションに適合するよう正しいUUIDフォーマットに変更）
@@ -26,6 +27,8 @@ const mockUsers = [
 
 export default function TaskList() {
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuthStore();
+  const [taskScopeFilter, setTaskScopeFilter] = useState<'ALL' | 'ASSIGNED' | 'CREATED'>('ALL');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
@@ -320,6 +323,13 @@ export default function TaskList() {
 
   // クライアントサイドでのフィルタリング処理
   const filteredTasks = tasks.filter(task => {
+    // 担当タスク / 起票タスク フィルター
+    if (taskScopeFilter === 'ASSIGNED' && task.assignedUserId !== currentUser?.id) {
+      return false;
+    }
+    if (taskScopeFilter === 'CREATED' && task.createdBy !== currentUser?.id) {
+      return false;
+    }
     // キーワード検索 (タイトル or 説明文)
     if (keyword && !task.title.toLowerCase().includes(keyword.toLowerCase()) && !task.description?.toLowerCase().includes(keyword.toLowerCase())) {
       return false;
@@ -356,6 +366,36 @@ export default function TaskList() {
       {/* 上部コントロールエリア */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex flex-wrap items-center gap-3">
+          {/* 統一フィルター UI (セグメントボタン: 全体 / 自分が担当 / 自分が起票) */}
+          <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
+            <button
+              onClick={() => setTaskScopeFilter('ALL')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                taskScopeFilter === 'ALL' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              👥 全体タスク
+            </button>
+            <button
+              onClick={() => setTaskScopeFilter('ASSIGNED')}
+              data-testid="filter-my-kanban"
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                taskScopeFilter === 'ASSIGNED' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              👤 自分が担当
+            </button>
+            <button
+              onClick={() => setTaskScopeFilter('CREATED')}
+              data-testid="filter-created-kanban"
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                taskScopeFilter === 'CREATED' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              📝 自分が起票
+            </button>
+          </div>
+
           {/* キーワード入力 */}
           <input
             type="text"
