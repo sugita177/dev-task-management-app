@@ -3,10 +3,11 @@ import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { JwtRefreshAuthGuard } from './jwt-refresh-auth.guard';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
@@ -48,7 +49,7 @@ export class AuthController {
     return this.authService.getProfile(req.user.userId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtRefreshAuthGuard)
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(@Req() req: any, @Res({ passthrough: true }) res: Response) {
