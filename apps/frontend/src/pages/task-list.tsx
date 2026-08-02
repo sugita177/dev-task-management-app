@@ -726,6 +726,7 @@ export default function TaskList() {
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">ステータス</label>
                     <select
+                      data-testid="edit-status-select"
                       value={editStatus}
                       onChange={(e) => setEditStatus(e.target.value as TaskProgressState)}
                       className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 font-semibold"

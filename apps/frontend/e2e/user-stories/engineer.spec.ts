@@ -21,14 +21,25 @@ test.describe('ENGINEER ロール ユーザーストーリー E2Eテスト', () 
     const othersTaskTitle = page.getByText('フロントエンドダッシュボード構築');
     await expect(othersTaskTitle).not.toBeVisible();
 
-    // 5. タイマー開始ボタンのクリックと停止ボタンの確認 (確実なアサーション)
+    // 5. タイマー開始ボタンのクリックと停止ボタンの確認
     const startTimerBtn = page.getByRole('button', { name: /▶️ タイマー開始/i }).first();
     await expect(startTimerBtn).toBeVisible({ timeout: 15000 });
     await startTimerBtn.click();
 
     // 計測中状態（タイマー停止 ボタン）への変化を確認
-    const stopTimerBtn = page.getByRole('button', { name: /タイマー停止/i }).first();
+    const stopTimerBtn = page.getByRole('button', { name: /一時停止/i }).first();
     await expect(stopTimerBtn).toBeVisible({ timeout: 15000 });
+
+    // 6. 動作中 (isTimerRunning === true) のままリロード後も localStorage 経由でタイマー計測状態が復元維持されることの確認
+    await page.reload();
+    const restoredStopTimerBtn = page.getByRole('button', { name: /一時停止/i }).first();
+    await expect(restoredStopTimerBtn).toBeVisible({ timeout: 15000 });
+
+    // 7. 一時停止 (isTimerRunning === false, lastStartedAt === null) 後にリロードしても一時停止状態 (再開ボタン) が正しく復元されることの確認
+    await restoredStopTimerBtn.click(); // 一時停止
+    await page.reload();
+    const resumeTimerBtn = page.getByRole('button', { name: /再開|▶️ タイマー開始/i }).first();
+    await expect(resumeTimerBtn).toBeVisible({ timeout: 15000 });
   });
 
   test('US-ENG-02: マイ・ガントチャートとセルフキャパシティ分析の確認', async ({ page }) => {

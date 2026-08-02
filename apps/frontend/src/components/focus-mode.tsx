@@ -4,6 +4,16 @@ import { taskApi, workLogApi } from '../api/task-api';
 import { useAuthStore } from '../store/auth-store';
 import type { Task, TaskProgressState } from '../types/task';
 
+const TIMER_STORAGE_KEY = 'focus_mode_timer_state';
+
+interface SavedTimerState {
+  activeTaskId: string;
+  accumulatedSeconds: number; // 確定している純粋な累積作業秒数（一時停止時間は除外）
+  lastStartedAt: number | null; // 最新の「▶️ 開始/再開」ボタン押下タイムスタンプ (Date.now())。最後に押されたのが「⏸️ 一時停止」の場合は null
+  isTimerRunning: boolean;
+  logDescription: string;
+}
+
 export default function FocusMode() {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
@@ -13,6 +23,65 @@ export default function FocusMode() {
   const [secondsElapsed, setSecondsElapsed] = useState<number>(0);
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
   const [logDescription, setLogDescription] = useState<string>('');
+  const [isRestored, setIsRestored] = useState<boolean>(false);
+
+  // 初回マウント時に localStorage からタイマー状態を復元
+  useEffect(() => {
+    const raw = localStorage.getItem(TIMER_STORAGE_KEY);
+    if (raw) {
+      try {
+        const saved: SavedTimerState = JSON.parse(raw);
+        if (saved.activeTaskId) {
+          let currentSeconds = saved.accumulatedSeconds || 0;
+          // タイマーが動作中（isTimerRunning === true かつ lastStartedAt !== null）のままタブが閉じられた場合のみ、離脱していた時間を純粋加算
+          if (saved.isTimerRunning && saved.lastStartedAt) {
+            const elapsedSinceStart = Math.floor((Date.now() - saved.lastStartedAt) / 1000);
+            currentSeconds += Math.max(0, elapsedSinceStart);
+          }
+
+          // 24時間 (86400秒) 以上「動作累積時間」が経過している場合のユーザー確認ダイアログ
+          const TWENTY_FOUR_HOURS_SECS = 24 * 60 * 60;
+          let shouldDelete = false;
+          if (currentSeconds >= TWENTY_FOUR_HOURS_SECS) {
+            shouldDelete = window.confirm(
+              '24時間以上経過した前回のタイマーが見つかりました。\nタイマーを削除（リセット）しますか？\n「キャンセル」を選択するとそのままタイマー状態が維持されます。'
+            );
+          }
+
+          if (shouldDelete) {
+            localStorage.removeItem(TIMER_STORAGE_KEY);
+          } else {
+            setActiveTaskId(saved.activeTaskId);
+            setSecondsElapsed(currentSeconds);
+            setIsTimerRunning(saved.isTimerRunning);
+            setLogDescription(saved.logDescription || '');
+          }
+        }
+      } catch {
+        localStorage.removeItem(TIMER_STORAGE_KEY);
+      }
+    }
+    setIsRestored(true);
+  }, []);
+
+  // 状態変更時に localStorage へ同期保存
+  useEffect(() => {
+    if (!isRestored) return;
+
+    if (!activeTaskId) {
+      localStorage.removeItem(TIMER_STORAGE_KEY);
+    } else {
+      const timerState: SavedTimerState = {
+        activeTaskId,
+        accumulatedSeconds: secondsElapsed,
+        // 動作中（isTimerRunning === true）は開始時刻 (Date.now())、最後に押されたのが「一時停止」の場合は null
+        lastStartedAt: isTimerRunning ? Date.now() : null,
+        isTimerRunning,
+        logDescription,
+      };
+      localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(timerState));
+    }
+  }, [activeTaskId, secondsElapsed, isTimerRunning, logDescription, isRestored]);
 
   // バックエンドからタスク一覧を取得
   const { data: allTasks, isLoading } = useQuery<Task[]>({
@@ -46,6 +115,7 @@ export default function FocusMode() {
       return workLogApi.create(taskId, user.id, today, hours, description);
     },
     onSuccess: () => {
+      localStorage.removeItem(TIMER_STORAGE_KEY);
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['workLogs'] });
       setSecondsElapsed(0);
@@ -110,7 +180,7 @@ export default function FocusMode() {
               今日のフォーカス・タスク
             </h2>
             <p className="text-xs text-slate-400 mt-1">
-              雑音を排除し、今日の作業だけに集中。ワンクリックで実績工数を記録します。
+              雑音を排除し、今日の作業だけに集中。ワンクリックで実績工数を記録します。（※ 日を跨いだ計測は保存ボタン押下日の工数として記録されます）
             </p>
           </div>
 
