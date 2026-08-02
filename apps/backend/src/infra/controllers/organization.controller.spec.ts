@@ -1,8 +1,9 @@
 import { OrganizationController } from './organization.controller';
+import { EntityManager } from 'typeorm';
 
 describe('OrganizationController', () => {
   let controller: OrganizationController;
-  let mockEntityManager: any;
+  let mockEntityManager: Partial<EntityManager>;
 
   beforeEach(() => {
     mockEntityManager = {
@@ -14,7 +15,7 @@ describe('OrganizationController', () => {
       save: jest.fn().mockImplementation((entityClass, data) => Promise.resolve(data)),
     };
 
-    controller = new OrganizationController(mockEntityManager);
+    controller = new OrganizationController(mockEntityManager as EntityManager);
   });
 
   it('組織（チーム）一覧を正常に取得できること', async () => {

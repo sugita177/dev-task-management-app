@@ -18,6 +18,7 @@ import { OrganizationController } from './infra/controllers/organization.control
 import { CategoryController } from './infra/controllers/category.controller';
 import { TasksModule } from './tasks.module';
 import { AuthModule } from './auth/auth.module';
+import { TaskDependencyOrmEntity } from './infra/entities/task-dependency.orm-entity';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { AuthModule } from './auth/auth.module';
         TaskHistoryOrmEntity,
         OrganizationOrmEntity,
         CategoryOrmEntity,
+        TaskDependencyOrmEntity,
       ],
       synchronize: true,
     }),

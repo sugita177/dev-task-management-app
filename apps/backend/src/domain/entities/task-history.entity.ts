@@ -4,8 +4,8 @@ export interface TaskHistoryProps {
   changedBy: string;
   changedByName?: string;
   actionType: string;
-  beforePayload?: any;
-  afterPayload?: any;
+  beforePayload?: Record<string, unknown> | null;
+  afterPayload?: Record<string, unknown> | null;
   comment?: string;
   changedAt: Date;
 }
@@ -26,8 +26,8 @@ export class TaskHistory {
   get changedBy(): string { return this.props.changedBy; }
   get changedByName(): string | undefined { return this.props.changedByName; }
   get actionType(): string { return this.props.actionType; }
-  get beforePayload(): any { return this.props.beforePayload; }
-  get afterPayload(): any { return this.props.afterPayload; }
+  get beforePayload(): Record<string, unknown> | null | undefined { return this.props.beforePayload; }
+  get afterPayload(): Record<string, unknown> | null | undefined { return this.props.afterPayload; }
   get comment(): string | undefined { return this.props.comment; }
   get changedAt(): Date { return this.props.changedAt; }
 }

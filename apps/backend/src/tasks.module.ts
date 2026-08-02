@@ -9,6 +9,7 @@ import { TaskOrmEntity } from './infra/entities/task.orm-entity';
 import { CommentOrmEntity } from './infra/entities/comment.orm-entity';
 import { WorkLogOrmEntity } from './infra/entities/work-log.orm-entity';
 import { TaskHistoryOrmEntity } from './infra/entities/task-history.orm-entity';
+import { TaskDependencyOrmEntity } from './infra/entities/task-dependency.orm-entity';
 import { CreateTaskUseCase } from './usecase/create-task.usecase';
 import { UpdateTaskUseCase } from './usecase/update-task.usecase';
 import { GetTaskUseCase } from './usecase/get-task.usecase';
@@ -26,6 +27,7 @@ import { ListTaskHistoriesUseCase } from './usecase/list-task-histories.usecase'
       CommentOrmEntity,
       WorkLogOrmEntity,
       TaskHistoryOrmEntity,
+      TaskDependencyOrmEntity,
     ]),
   ],
   controllers: [TaskController],

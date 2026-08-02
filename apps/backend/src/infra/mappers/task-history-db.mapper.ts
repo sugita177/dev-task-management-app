@@ -7,7 +7,7 @@ export class TaskHistoryDbMapper {
       id: orm.id,
       taskId: orm.taskId,
       changedBy: orm.changedBy,
-      changedByName: orm.user?.name,
+      changedByName: orm.changedByUser?.name,
       actionType: orm.actionType,
       beforePayload: orm.beforePayload,
       afterPayload: orm.afterPayload,
@@ -22,8 +22,8 @@ export class TaskHistoryDbMapper {
     orm.taskId = domain.taskId;
     orm.changedBy = domain.changedBy;
     orm.actionType = domain.actionType;
-    orm.beforePayload = domain.beforePayload;
-    orm.afterPayload = domain.afterPayload;
+    orm.beforePayload = domain.beforePayload ?? undefined;
+    orm.afterPayload = domain.afterPayload ?? undefined;
     orm.comment = domain.comment;
     orm.changedAt = domain.changedAt;
     return orm;

@@ -1,4 +1,4 @@
-import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { TaskOrmEntity } from './task.orm-entity';
 import { UserOrmEntity } from './user.orm-entity';
 
@@ -19,20 +19,20 @@ export class TaskHistoryOrmEntity {
 
   @ManyToOne(() => UserOrmEntity)
   @JoinColumn({ name: 'changed_by' })
-  user: UserOrmEntity;
+  changedByUser: UserOrmEntity;
 
   @Column({ name: 'action_type' })
   actionType: string;
 
   @Column({ name: 'before_payload', type: 'jsonb', nullable: true })
-  beforePayload?: any;
+  beforePayload?: Record<string, unknown>;
 
   @Column({ name: 'after_payload', type: 'jsonb', nullable: true })
-  afterPayload?: any;
+  afterPayload?: Record<string, unknown>;
 
-  @Column({ type: 'text', nullable: true })
+  @Column({ name: 'comment', nullable: true })
   comment?: string;
 
-  @Column({ name: 'changed_at', type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @CreateDateColumn({ name: 'changed_at' })
   changedAt: Date;
 }

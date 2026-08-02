@@ -110,5 +110,14 @@ export interface TaskHistory {
   actionType: string;
   beforePayload?: Record<string, unknown>;
   afterPayload?: Record<string, unknown>;
+  comment?: string;
   changedAt: string;
+}
+
+export interface TaskDependency {
+  id: string;
+  dependentTaskId: string;
+  dependsOnTaskId: string;
+  type: string;
+  createdAt?: string;
 }

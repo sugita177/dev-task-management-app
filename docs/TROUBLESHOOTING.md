@@ -71,3 +71,39 @@ Windows のシャットダウンにより WSL2 / Docker Desktop のポートマ�
 ```bash
 docker compose restart frontend
 ```
+
+---
+
+## 3. Docker コンテナ内 NestJS ルートの未同期・ビルド差分（新設 API の 404 / 400 エラー）
+
+### 🚨 現象
+* 新しくバックエンドコントローラーに追加した API エンドポイント（例: `POST /api/tasks/dependencies`）をフロントエンドから呼び出した際、`404 Not Found` または `400 Bad Request`（例: `Task with id dependencies not found`）のエラーが発生する。
+* バックエンドの TypeScript コード上には定義が存在するにもかかわらず、リクエストが想定と異なるルート（例: `POST /api/tasks/:id`）に割り当てられて失敗する。
+
+### 💡 原因
+* Docker コンテナ環境において、コンテナ起動時（`nest start --watch`）に古いコンパイル結果（`dist` ディレクトリやビルド済みイメージ）が参照され続けている場合、ローカル環境で新規作成したコントローラーのルーティングが Docker 内の NestJS ルータにマッピング（認識）されない現象が発生します。
+
+### 🔧 解決策
+
+#### ① バックエンドコンテナの明示的な再ビルドと再起動
+コンテナをイメージから再ビルドして起動し、コンパイル成果物を完全に更新します。
+
+```bash
+docker compose up -d --build backend
+```
+
+#### ② Docker コンテナログによるルーティングマッピングの確認
+以下のコマンドを実行し、新しい API エンドポイントが NestJS の `RouterExplorer` に正常にマッピングされていることを確認します。
+
+```bash
+docker logs --tail 50 dev-task-management-app-backend-1
+```
+
+**【正常時のログ出力例】**
+```log
+[Nest] LOG [RouterExplorer] Mapped {/api/tasks/dependencies, GET} route
+[Nest] LOG [RouterExplorer] Mapped {/api/tasks/dependencies, POST} route
+[Nest] LOG [RouterExplorer] Mapped {/api/tasks/dependencies/:id, PUT} route
+[Nest] LOG [RouterExplorer] Mapped {/api/tasks/dependencies/:id, DELETE} route
+```
+

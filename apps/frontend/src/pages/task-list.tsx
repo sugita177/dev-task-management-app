@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { taskApi, projectApi, userApi, commentApi, workLogApi, historyApi } from '../api/task-api';
+import { taskApi, projectApi, userApi, commentApi, workLogApi, historyApi, taskDependencyApi } from '../api/task-api';
 import { useTaskStore } from '../store/task-store';
 import { useAuthStore } from '../store/auth-store';
-import type { Task, TaskProgressState, TaskPriority, UpdateTaskDto, TaskHistory, User, Project } from '../types/task';
+import type { Task, TaskProgressState, TaskPriority, UpdateTaskDto, TaskHistory, User, Project, TaskDependency } from '../types/task';
 
 // モックマスターデータ定義（バックエンドのバリデーションに適合するよう正しいUUIDフォーマットに変更）
 const mockProjects = [
@@ -55,7 +55,7 @@ export default function TaskList() {
   const [editAssignee, setEditAssignee] = useState('');
 
   // 新機能用ローカルステート (タブ、コメント、工数)
-  const [activeTab, setActiveTab] = useState<'info' | 'comments' | 'worklog' | 'history'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'dependencies' | 'worklog' | 'comments' | 'history'>('info');
   const [commentText, setCommentText] = useState('');
   const [workLogDate, setWorkLogDate] = useState(new Date().toISOString().split('T')[0]);
   const [workLogHours, setWorkLogHours] = useState<number>(0);
@@ -86,6 +86,90 @@ export default function TaskList() {
   const { data: users = mockUsers } = useQuery({
     queryKey: ['users'],
     queryFn: userApi.list,
+  });
+
+  // 依存関係管理用ステート & クエリ
+  const [selectedDepTaskId, setSelectedDepTaskId] = useState<string>('');
+  const [selectedSuccDepTaskId, setSelectedSuccDepTaskId] = useState<string>('');
+  const [editingDepId, setEditingDepId] = useState<string | null>(null);
+  const [editingDependsOnTaskId, setEditingDependsOnTaskId] = useState<string>('');
+  const [activePopover, setActivePopover] = useState<{ taskId: string; type: 'predecessor' | 'successor' } | null>(null);
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
+  const popoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseEnterBadge = (taskId: string, type: 'predecessor' | 'successor') => {
+    if (popoverTimerRef.current) {
+      clearTimeout(popoverTimerRef.current);
+      popoverTimerRef.current = null;
+    }
+    setActivePopover({ taskId, type });
+  };
+
+  const handleMouseLeaveBadge = () => {
+    popoverTimerRef.current = setTimeout(() => {
+      setActivePopover(null);
+    }, 250);
+  };
+
+  const scrollToTaskOnBoard = (taskId: string) => {
+    setTaskScopeFilter('ALL');
+    setKeyword('');
+    setProjectIds([]);
+    setPriorities([]);
+
+    setTimeout(() => {
+      const el = document.getElementById(`task-card-${taskId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setHighlightedTaskId(taskId);
+        setTimeout(() => setHighlightedTaskId(null), 2500);
+      }
+    }, 150);
+  };
+
+  const { data: dependencies = [] } = useQuery<TaskDependency[]>({
+    queryKey: ['taskDependencies'],
+    queryFn: taskDependencyApi.list,
+  });
+
+  const createDepMutation = useMutation({
+    mutationFn: async ({ dependentTaskId, dependsOnTaskId }: { dependentTaskId: string; dependsOnTaskId: string }) => {
+      return taskDependencyApi.create(dependentTaskId, dependsOnTaskId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['taskDependencies'] });
+      queryClient.invalidateQueries({ queryKey: ['histories'] });
+    },
+    onError: (err: any) => {
+      alert('依存関係の登録に失敗しました:\n' + (err?.response?.data?.message || err.message || '不明なエラー'));
+    },
+  });
+
+  const updateDepMutation = useMutation({
+    mutationFn: async ({ id, dependsOnTaskId }: { id: string; dependsOnTaskId: string }) => {
+      return taskDependencyApi.update(id, dependsOnTaskId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['taskDependencies'] });
+      queryClient.invalidateQueries({ queryKey: ['histories'] });
+      setEditingDepId(null);
+    },
+    onError: (err: any) => {
+      alert('依存関係の変更に失敗しました:\n' + (err?.response?.data?.message || err.message || '不明なエラー'));
+    },
+  });
+
+  const deleteDepMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return taskDependencyApi.delete(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['taskDependencies'] });
+      queryClient.invalidateQueries({ queryKey: ['histories'] });
+    },
+    onError: (err: any) => {
+      alert('依存関係の解除に失敗しました:\n' + (err?.response?.data?.message || err.message || '不明なエラー'));
+    },
   });
 
   // タスク作成のミューテーション（エラーハンドリングを追加）
@@ -184,6 +268,10 @@ export default function TaskList() {
     setEditStartDate(task.plannedStartDate ? new Date(task.plannedStartDate).toISOString().split('T')[0] : '');
     setEditEndDate(task.plannedEndDate ? new Date(task.plannedEndDate).toISOString().split('T')[0] : '');
     setEditAssignee(task.assignedUserId || '');
+    setSelectedDepTaskId('');
+    setSelectedSuccDepTaskId('');
+    setEditingDepId(null);
+    setEditingDependsOnTaskId('');
   };
 
   const handleCreateSubmit = (e: React.FormEvent) => {
@@ -245,8 +333,14 @@ export default function TaskList() {
   };
 
   const renderHistoryDetails = (history: TaskHistory) => {
-    if (history.actionType === 'CREATE' || !history.beforePayload) {
+    if (history.comment) {
+      return history.comment;
+    }
+    if (history.actionType === 'CREATE') {
       return 'タスクを起票しました。';
+    }
+    if (!history.beforePayload) {
+      return 'タスクの情報が変更されました。';
     }
 
     const changes: string[] = [];
@@ -468,19 +562,204 @@ export default function TaskList() {
                 <div className="space-y-3 min-h-[400px]">
                   {columnTasks.map((task) => {
                     const project = projects.find(p => p.id === task.projectId);
+
+                    // 依存タスクの算出
+                    const predDeps = dependencies.filter(d => d.dependentTaskId === task.id);
+                    const succDeps = dependencies.filter(d => d.dependsOnTaskId === task.id);
+                    const predTasks = predDeps.map(d => tasks.find(t => t.id === d.dependsOnTaskId)).filter(Boolean) as Task[];
+                    const succTasks = succDeps.map(d => tasks.find(t => t.id === d.dependentTaskId)).filter(Boolean) as Task[];
+                    const hasUncompletedPredecessor = predTasks.some(pt => pt.progressState !== 'DONE');
+
+                    const isCardPopoverActive = activePopover?.taskId === task.id;
+
                     return (
                       <div
+                        id={`task-card-${task.id}`}
                         key={task.id}
                         onClick={() => handleOpenEditModal(task)}
-                        className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs hover:shadow-md hover:border-indigo-200 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer group"
+                        className={`bg-white p-3.5 rounded-xl border transition-all duration-300 cursor-pointer group flex flex-col justify-between h-[135px] ${
+                          highlightedTaskId === task.id
+                            ? 'ring-4 ring-indigo-500 border-indigo-400 bg-indigo-50/70 scale-102 z-40 relative animate-pulse'
+                            : isCardPopoverActive
+                            ? 'z-50 relative border-slate-300 shadow-md'
+                            : 'z-0 relative border-slate-200/80 shadow-xs hover:shadow-md hover:border-indigo-200 hover:-translate-y-0.5'
+                        }`}
                       >
-                        <span className={`inline-block px-2 py-0.5 text-[10px] font-extrabold border rounded-md mb-2 ${getPriorityColor(task.priority)}`}>
-                          {task.priority === 'HIGH' ? '高' : task.priority === 'MEDIUM' ? '中' : '低'}
-                        </span>
-                        <h4 className="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition mb-3">
-                          {task.title}
-                        </h4>
-                        <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-100">
+                        <div>
+                          <div className="flex items-center justify-between gap-1 h-5">
+                            <span className={`inline-block px-2 py-0.5 text-[10px] font-extrabold border rounded-md ${getPriorityColor(task.priority)}`}>
+                              {task.priority === 'HIGH' ? '高' : task.priority === 'MEDIUM' ? '中' : '低'}
+                            </span>
+                            {hasUncompletedPredecessor && (
+                              <span className="px-1.5 py-0.5 text-[9px] font-extrabold bg-rose-100 text-rose-700 border border-rose-300 rounded-md shrink-0">
+                                ⚠️ 先行未完了
+                              </span>
+                            )}
+                          </div>
+
+                          <h4 className="font-bold text-slate-800 text-xs line-clamp-2 leading-snug h-8 flex items-center my-1.5 group-hover:text-indigo-600 transition">
+                            {task.title}
+                          </h4>
+
+                          {/* 先行・後続依存関係バッジ ＆ 吹き出しポップオーバー (常に同じ枠を確保) */}
+                          {(predTasks.length > 0 || succTasks.length > 0) ? (
+                            <div className="flex items-center gap-1.5 h-5">
+                              {/* 先行タスクバッジ */}
+                              {predTasks.length > 0 && (
+                                <div
+                                  className="relative inline-block"
+                                  onMouseEnter={(e) => {
+                                    e.stopPropagation();
+                                    handleMouseEnterBadge(task.id, 'predecessor');
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.stopPropagation();
+                                    handleMouseLeaveBadge();
+                                  }}
+                                >
+                                  <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200/80 rounded-md hover:bg-amber-100 transition flex items-center gap-1">
+                                    🔗 先行 {predTasks.length}
+                                  </span>
+
+                                  {/* 吹き出しポップオーバー (先行タスク) */}
+                                  {activePopover?.taskId === task.id && activePopover?.type === 'predecessor' && (
+                                    <div
+                                      className="absolute bottom-full left-0 mb-1.5 z-[100] w-72 bg-slate-900 text-white rounded-xl p-3 text-xs shadow-2xl border border-slate-700 animate-scale-up pointer-events-auto"
+                                      onClick={(e) => e.stopPropagation()}
+                                      onMouseEnter={() => {
+                                        if (popoverTimerRef.current) {
+                                          clearTimeout(popoverTimerRef.current);
+                                          popoverTimerRef.current = null;
+                                        }
+                                      }}
+                                      onMouseLeave={handleMouseLeaveBadge}
+                                    >
+                                      <div className="font-bold text-amber-300 mb-2 flex items-center justify-between border-b border-slate-800 pb-1.5">
+                                        <span>🔗 先行タスク ({predTasks.length}件)</span>
+                                        <span className="text-[9px] text-slate-400 font-normal">カード移動 / ✏️詳細</span>
+                                      </div>
+                                      <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                        {predTasks.map((pt) => (
+                                          <div
+                                            key={pt.id}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              scrollToTaskOnBoard(pt.id);
+                                            }}
+                                            className="p-2 bg-slate-800 hover:bg-slate-750 rounded-lg border border-slate-700/60 cursor-pointer transition flex items-center justify-between gap-2 group/item"
+                                            title="クリックでボード上のカードへ移動・点滅表示"
+                                          >
+                                            <span className="font-semibold text-slate-200 group-hover/item:text-amber-300 transition truncate text-[11px]">
+                                              🎯 {pt.title}
+                                            </span>
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                              <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                                                pt.progressState === 'DONE' ? 'bg-emerald-900/80 text-emerald-300' : 'bg-amber-900/80 text-amber-300'
+                                              }`}>
+                                                {pt.progressState === 'DONE' ? '完了' : '未完了'}
+                                              </span>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleOpenEditModal(pt);
+                                                }}
+                                                className="px-1.5 py-0.5 text-[9px] font-bold bg-indigo-900/80 hover:bg-indigo-700 text-indigo-200 border border-indigo-500/50 rounded transition"
+                                                title="詳細モーダルを開く"
+                                              >
+                                                ✏️ 詳細
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <div className="absolute top-full left-4 -mt-0.5 border-6 border-transparent border-t-slate-900" />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* 後続タスクバッジ */}
+                              {succTasks.length > 0 && (
+                                <div
+                                  className="relative inline-block"
+                                  onMouseEnter={(e) => {
+                                    e.stopPropagation();
+                                    handleMouseEnterBadge(task.id, 'successor');
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.stopPropagation();
+                                    handleMouseLeaveBadge();
+                                  }}
+                                >
+                                  <span className="px-1.5 py-0.5 text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80 rounded-md hover:bg-indigo-100 transition flex items-center gap-1">
+                                    🔜 後続 {succTasks.length}
+                                  </span>
+
+                                  {/* 吹き出しポップオーバー (後続タスク) */}
+                                  {activePopover?.taskId === task.id && activePopover?.type === 'successor' && (
+                                    <div
+                                      className="absolute bottom-full left-0 mb-1.5 z-[100] w-72 bg-slate-900 text-white rounded-xl p-3 text-xs shadow-2xl border border-slate-700 animate-scale-up pointer-events-auto"
+                                      onClick={(e) => e.stopPropagation()}
+                                      onMouseEnter={() => {
+                                        if (popoverTimerRef.current) {
+                                          clearTimeout(popoverTimerRef.current);
+                                          popoverTimerRef.current = null;
+                                        }
+                                      }}
+                                      onMouseLeave={handleMouseLeaveBadge}
+                                    >
+                                      <div className="font-bold text-indigo-300 mb-2 flex items-center justify-between border-b border-slate-800 pb-1.5">
+                                        <span>🔜 後続タスク ({succTasks.length}件)</span>
+                                        <span className="text-[9px] text-slate-400 font-normal">カード移動 / ✏️詳細</span>
+                                      </div>
+                                      <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                                        {succTasks.map((st) => (
+                                          <div
+                                            key={st.id}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              scrollToTaskOnBoard(st.id);
+                                            }}
+                                            className="p-2 bg-slate-800 hover:bg-slate-750 rounded-lg border border-slate-700/60 cursor-pointer transition flex items-center justify-between gap-2 group/item"
+                                            title="クリックでボード上のカードへ移動・点滅表示"
+                                          >
+                                            <span className="font-semibold text-slate-200 group-hover/item:text-indigo-300 transition truncate text-[11px]">
+                                              🎯 {st.title}
+                                            </span>
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                              <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                                                st.progressState === 'DONE' ? 'bg-emerald-900/80 text-emerald-300' : 'bg-slate-700 text-slate-300'
+                                              }`}>
+                                                {st.progressState === 'DONE' ? '完了' : st.progressState === 'IN_PROGRESS' ? '進行中' : '未着手'}
+                                              </span>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  handleOpenEditModal(st);
+                                                }}
+                                                className="px-1.5 py-0.5 text-[9px] font-bold bg-indigo-900/80 hover:bg-indigo-700 text-indigo-200 border border-indigo-500/50 rounded transition"
+                                                title="詳細モーダルを開く"
+                                              >
+                                                ✏️ 詳細
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <div className="absolute top-full left-4 -mt-0.5 border-6 border-transparent border-t-slate-900" />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="h-5 invisible select-none" />
+                          )}
+                        </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-100">
                           <span className="font-semibold text-slate-500 truncate max-w-[120px]">
                             {project?.name || '共通設定'}
                           </span>
@@ -626,9 +905,15 @@ export default function TaskList() {
 
       {/* タスク編集・詳細モーダル */}
       {selectedTask && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl overflow-hidden border border-slate-100 animate-scale-up">
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+        <div
+          onClick={() => setSelectedTask(null)}
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-xs overflow-y-auto"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-slate-100 animate-scale-up my-auto flex flex-col"
+          >
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white sticky top-0 z-20">
               <h3 className="text-lg font-bold text-slate-800">タスク詳細・編集</h3>
               <button onClick={() => setSelectedTask(null)} className="text-slate-400 hover:text-slate-600 transition">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -636,13 +921,20 @@ export default function TaskList() {
             </div>
 
             {/* タブナビゲーション */}
-            <div className="px-6 bg-slate-50 border-b border-slate-100 flex gap-4 text-xs font-bold text-slate-500 uppercase">
+            <div className="px-6 bg-slate-50 border-b border-slate-100 flex gap-4 text-xs font-bold text-slate-500 uppercase shrink-0 sticky top-[73px] z-20">
               <button
                 type="button"
                 onClick={() => setActiveTab('info')}
                 className={`py-3 border-b-2 transition-all ${activeTab === 'info' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-800'}`}
               >
                 基本情報
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('dependencies')}
+                className={`py-3 border-b-2 transition-all ${activeTab === 'dependencies' ? 'border-indigo-600 text-indigo-600' : 'border-transparent hover:text-slate-800'}`}
+              >
+                🔗 依存関係 ({dependencies.filter(d => d.dependentTaskId === selectedTask.id || d.dependsOnTaskId === selectedTask.id).length})
               </button>
               <button
                 type="button"
@@ -669,7 +961,7 @@ export default function TaskList() {
 
             {/* 基本情報タブ */}
             {activeTab === 'info' && (
-              <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              <form onSubmit={handleEditSubmit} className="p-6 space-y-5">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">タスク名</label>
                   <input
@@ -780,6 +1072,7 @@ export default function TaskList() {
                     />
                   </div>
                 </div>
+
                 <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
                   <button
                     type="button"
@@ -798,6 +1091,209 @@ export default function TaskList() {
                   </button>
                 </div>
               </form>
+            )}
+
+            {/* 依存関係タブ */}
+            {activeTab === 'dependencies' && (
+              <div className="p-6 space-y-6">
+                <div className="bg-indigo-50/60 p-3 rounded-xl border border-indigo-100 text-xs text-indigo-900 leading-relaxed">
+                  💡 <strong>タスクの依存関係管理:</strong> 先行・後続タスクを追加・変更・削除すると、即座に登録・反映されます（双方向の変更履歴も自動記録されます）。
+                </div>
+
+                {/* 1. 先行タスクの依存設定 */}
+                <div className="space-y-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+                  <label className="block text-xs font-bold text-amber-800 uppercase flex items-center justify-between">
+                    <span>🔗 先行タスクの設定</span>
+                    <span className="text-[10px] text-slate-400 font-normal font-sans">(このタスクより前に終わるべきタスク)</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={selectedDepTaskId}
+                      onChange={(e) => setSelectedDepTaskId(e.target.value)}
+                      className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500/20"
+                    >
+                      <option value="">-- 先行タスクを選択して追加 --</option>
+                      {tasks
+                        .filter((t) => t.id !== selectedTask.id)
+                        .map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.title} ({t.progressState})
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={!selectedDepTaskId || createDepMutation.isPending}
+                      onClick={() => {
+                        if (!selectedDepTaskId) return;
+                        createDepMutation.mutate({
+                          dependentTaskId: selectedTask.id,
+                          dependsOnTaskId: selectedDepTaskId,
+                        });
+                        setSelectedDepTaskId('');
+                      }}
+                      className="w-20 py-2 text-xs font-bold bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl transition text-center shrink-0"
+                    >
+                      {createDepMutation.isPending && createDepMutation.variables?.dependentTaskId === selectedTask.id ? '追加中...' : '追加'}
+                    </button>
+                  </div>
+
+                  {/* 登録済み先行タスク一覧 */}
+                  {dependencies.filter((d) => d.dependentTaskId === selectedTask.id).length > 0 ? (
+                    <div className="space-y-2 max-h-48 overflow-y-auto pt-1">
+                      {dependencies
+                        .filter((d) => d.dependentTaskId === selectedTask.id)
+                        .map((d) => {
+                          const pt = tasks.find((t) => t.id === d.dependsOnTaskId);
+                          const isEditingThis = editingDepId === d.id;
+
+                          return (
+                            <div key={d.id} className="p-3 bg-amber-50/40 rounded-xl border border-amber-200/60 text-xs flex items-center justify-between gap-2">
+                              {isEditingThis ? (
+                                <div className="flex items-center gap-2 flex-1">
+                                  <select
+                                    value={editingDependsOnTaskId}
+                                    onChange={(e) => setEditingDependsOnTaskId(e.target.value)}
+                                    className="flex-1 px-2.5 py-1 text-xs border border-slate-300 rounded-lg bg-white"
+                                  >
+                                    {tasks
+                                      .filter((t) => t.id !== selectedTask.id)
+                                      .map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                          {t.title}
+                                        </option>
+                                      ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    disabled={!editingDependsOnTaskId || updateDepMutation.isPending}
+                                    onClick={() => {
+                                      if (!editingDependsOnTaskId) return;
+                                      updateDepMutation.mutate({
+                                        id: d.id,
+                                        dependsOnTaskId: editingDependsOnTaskId,
+                                      });
+                                    }}
+                                    className="px-3 py-1 text-[11px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition"
+                                  >
+                                    保存
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingDepId(null)}
+                                    className="px-2 py-1 text-[11px] text-slate-500 border border-slate-200 rounded-lg"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="truncate">
+                                    <span className="font-bold text-slate-800">{pt?.title || d.dependsOnTaskId}</span>
+                                    <span className="text-[10px] text-slate-400 block mt-0.5">ステータス: {pt?.progressState || '不明'}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingDepId(d.id);
+                                        setEditingDependsOnTaskId(d.dependsOnTaskId);
+                                      }}
+                                      className="px-2.5 py-1 text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 border border-indigo-200 rounded-lg transition"
+                                    >
+                                      ✏️ 変更
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={deleteDepMutation.isPending}
+                                      onClick={() => deleteDepMutation.mutate(d.id)}
+                                      className="px-2.5 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition"
+                                    >
+                                      🗑️ 解除
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic py-1">先行タスクは登録されていません。</p>
+                  )}
+                </div>
+
+                {/* 2. 後続タスクの依存設定 */}
+                <div className="space-y-3 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+                  <label className="block text-xs font-bold text-indigo-800 uppercase flex items-center justify-between">
+                    <span>🔜 後続タスクの設定</span>
+                    <span className="text-[10px] text-slate-400 font-normal font-sans">(このタスクの後に着手されるべきタスク)</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={selectedSuccDepTaskId}
+                      onChange={(e) => setSelectedSuccDepTaskId(e.target.value)}
+                      className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500/20"
+                    >
+                      <option value="">-- 後続タスクを選択して追加 --</option>
+                      {tasks
+                        .filter((t) => t.id !== selectedTask.id)
+                        .map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.title} ({t.progressState})
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={!selectedSuccDepTaskId || createDepMutation.isPending}
+                      onClick={() => {
+                        if (!selectedSuccDepTaskId) return;
+                        createDepMutation.mutate({
+                          dependentTaskId: selectedSuccDepTaskId,
+                          dependsOnTaskId: selectedTask.id,
+                        });
+                        setSelectedSuccDepTaskId('');
+                      }}
+                      className="w-20 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl transition text-center shrink-0"
+                    >
+                      {createDepMutation.isPending && createDepMutation.variables?.dependsOnTaskId === selectedTask.id ? '追加中...' : '追加'}
+                    </button>
+                  </div>
+
+                  {/* 登録済み後続タスク一覧 */}
+                  {dependencies.filter((d) => d.dependsOnTaskId === selectedTask.id).length > 0 ? (
+                    <div className="space-y-2 max-h-48 overflow-y-auto pt-1">
+                      {dependencies
+                        .filter((d) => d.dependsOnTaskId === selectedTask.id)
+                        .map((d) => {
+                          const st = tasks.find((t) => t.id === d.dependentTaskId);
+
+                          return (
+                            <div key={d.id} className="p-3 bg-indigo-50/40 rounded-xl border border-indigo-200/60 text-xs flex items-center justify-between gap-2">
+                              <div className="truncate">
+                                <span className="font-bold text-slate-800">{st?.title || d.dependentTaskId}</span>
+                                <span className="text-[10px] text-slate-400 block mt-0.5">ステータス: {st?.progressState || '不明'}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  disabled={deleteDepMutation.isPending}
+                                  onClick={() => deleteDepMutation.mutate(d.id)}
+                                  className="px-2.5 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition"
+                                >
+                                  🗑️ 解除
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic py-1">後続タスクは登録されていません。</p>
+                  )}
+                </div>
+              </div>
             )}
 
             {/* 実績工数タブ */}

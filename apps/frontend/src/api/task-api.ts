@@ -126,3 +126,52 @@ export const userApi = {
     return res.data;
   },
 };
+
+export const taskDependencyApi = {
+  async list(): Promise<import('../types/task').TaskDependency[]> {
+    try {
+      const res = await apiClient.get('/tasks/dependencies');
+      return res.data;
+    } catch (err: unknown) {
+      const axiosErr = err as AxiosError<{ message?: string | string[] }>;
+      const errData = axiosErr.response?.data || {};
+      const errorMsg = Array.isArray(errData.message) ? errData.message.join(', ') : (errData.message || '依存関係一覧の取得に失敗しました');
+      throw new Error(errorMsg);
+    }
+  },
+
+  async create(dependentTaskId: string, dependsOnTaskId: string, type?: string): Promise<import('../types/task').TaskDependency> {
+    try {
+      const res = await apiClient.post('/tasks/dependencies', { dependentTaskId, dependsOnTaskId, type });
+      return res.data;
+    } catch (err: unknown) {
+      const axiosErr = err as AxiosError<{ message?: string | string[] }>;
+      const errData = axiosErr.response?.data || {};
+      const errorMsg = Array.isArray(errData.message) ? errData.message.join(', ') : (errData.message || '依存関係の追加に失敗しました');
+      throw new Error(errorMsg);
+    }
+  },
+
+  async update(id: string, dependsOnTaskId: string, type?: string): Promise<import('../types/task').TaskDependency> {
+    try {
+      const res = await apiClient.put(`/tasks/dependencies/${id}`, { dependsOnTaskId, type });
+      return res.data;
+    } catch (err: unknown) {
+      const axiosErr = err as AxiosError<{ message?: string | string[] }>;
+      const errData = axiosErr.response?.data || {};
+      const errorMsg = Array.isArray(errData.message) ? errData.message.join(', ') : (errData.message || `依存関係(${id})の更新に失敗しました`);
+      throw new Error(errorMsg);
+    }
+  },
+
+  async delete(id: string): Promise<void> {
+    try {
+      await apiClient.delete(`/tasks/dependencies/${id}`);
+    } catch (err: unknown) {
+      const axiosErr = err as AxiosError<{ message?: string | string[] }>;
+      const errData = axiosErr.response?.data || {};
+      const errorMsg = Array.isArray(errData.message) ? errData.message.join(', ') : (errData.message || `依存関係(${id})の削除に失敗しました`);
+      throw new Error(errorMsg);
+    }
+  },
+};

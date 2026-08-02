@@ -10,6 +10,8 @@ import { TaskOrmEntity } from '../entities/task.orm-entity';
 import { ProgressStateUuidMap, PriorityUuidMap } from '../mappers/task-db.mapper';
 import { TaskProgressState, TaskPriority } from '../../domain/entities/task.entity';
 
+import { TaskDependencyOrmEntity } from '../entities/task-dependency.orm-entity';
+
 @Injectable()
 export class SeedService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SeedService.name);
@@ -24,6 +26,7 @@ export class SeedService implements OnApplicationBootstrap {
     await this.seedUsers();
     await this.seedProjects();
     await this.seedTasks();
+    await this.seedDependencies();
     this.logger.log('DB Seeding Completed.');
   }
 
@@ -214,6 +217,26 @@ export class SeedService implements OnApplicationBootstrap {
         this.logger.log(`Seeding task: ${task.title}`);
         const entity = this.entityManager.create(TaskOrmEntity, task);
         await this.entityManager.save(TaskOrmEntity, entity);
+      }
+    }
+  }
+
+  private async seedDependencies() {
+    const dependencies = [
+      {
+        id: '00000000-0000-0000-0000-000000000901',
+        dependentTaskId: '00000000-0000-0000-0000-000000000102', // フロントエンドダッシュボード構築
+        dependsOnTaskId: '00000000-0000-0000-0000-000000000101', // 認証APIの設計と実装
+        type: 'FINISH_TO_START',
+      },
+    ];
+
+    for (const dep of dependencies) {
+      const exists = await this.entityManager.findOneBy(TaskDependencyOrmEntity, { id: dep.id });
+      if (!exists) {
+        this.logger.log(`Seeding task dependency: ${dep.dependentTaskId} -> ${dep.dependsOnTaskId}`);
+        const entity = this.entityManager.create(TaskDependencyOrmEntity, dep);
+        await this.entityManager.save(TaskDependencyOrmEntity, entity);
       }
     }
   }

@@ -22,7 +22,7 @@ export class TaskHistoryRepository implements ITaskHistoryRepository {
     const ormEntities = await this.ormRepository.find({
       where: { taskId },
       order: { changedAt: 'DESC' },
-      relations: { user: true },
+      relations: { changedByUser: true },
     });
     return ormEntities.map(ormEntity => TaskHistoryDbMapper.toDomain(ormEntity));
   }

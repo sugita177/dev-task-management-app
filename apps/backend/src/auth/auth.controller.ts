@@ -45,14 +45,14 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  async me(@Req() req: any) {
+  async me(@Req() req: Request & { user: { userId: string } }) {
     return this.authService.getProfile(req.user.userId);
   }
 
   @UseGuards(JwtRefreshAuthGuard)
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refresh(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+  async refresh(@Req() req: Request & { user: { userId: string } }, @Res({ passthrough: true }) res: Response) {
     const user = await this.authService.getProfile(req.user.userId);
     const { accessToken } = await this.authService.login(user);
 
