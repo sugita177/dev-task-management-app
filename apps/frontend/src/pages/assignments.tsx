@@ -19,6 +19,10 @@ const mockProjects = [
 
 type PeriodFilter = 'THIS_WEEK' | 'THIS_MONTH' | 'ALL';
 
+// 現時点の表示期間キャパシティ乗数（※Step 5で月の日数・営業日数に応じた動的算出へ拡張予定）
+const AVERAGE_WEEKS_PER_MONTH = 4; // 1ヶ月 ≒ 4週間 (160h)
+const TOTAL_DISPLAY_WEEKS = 8;     // 全期間表示 ≒ 8週間 (320h)
+
 export default function Assignments() {
   const { user: currentUser } = useAuthStore();
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>('THIS_WEEK');
@@ -195,8 +199,8 @@ export default function Assignments() {
             }, 0);
 
             let maxCapacity = usr.maxHours;
-            if (selectedPeriod === 'THIS_MONTH') maxCapacity = usr.maxHours * 4;
-            if (selectedPeriod === 'ALL') maxCapacity = usr.maxHours * 8;
+            if (selectedPeriod === 'THIS_MONTH') maxCapacity = usr.maxHours * AVERAGE_WEEKS_PER_MONTH;
+            if (selectedPeriod === 'ALL') maxCapacity = usr.maxHours * TOTAL_DISPLAY_WEEKS;
 
             const loadRate = Math.min(100, Math.round((totalPeriodHours / maxCapacity) * 100));
             const isOverloaded = totalPeriodHours > maxCapacity;
