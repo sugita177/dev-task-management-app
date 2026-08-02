@@ -20,7 +20,7 @@ export default function FocusMode() {
     queryFn: taskApi.list,
   });
 
-  // 自分にアサインされている未完了タスク
+  // 自分にアサインされている未完了タスクのみを厳密抽出
   const myTasks = allTasks?.filter(
     (t) => t.assignedUserId === user?.id && t.progressState !== 'DONE'
   ) || [];

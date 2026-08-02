@@ -14,14 +14,21 @@ test.describe('ENGINEER ロール ユーザーストーリー E2Eテスト', () 
     const focusHeading = page.getByText(/今日のフォーカス・タスク/i);
     await expect(focusHeading).toBeVisible();
 
-    // 4. タイマー開始ボタンのクリックと停止ボタンの確認 (if文を排除した確実なアサーション)
+    // 4. 自分に担当アサインされたタスクのみが表示され、他人のタスクが表示されないことを確認
+    const myAssignedTaskTitle = page.getByText('認証APIの設計と実装');
+    await expect(myAssignedTaskTitle).toBeVisible({ timeout: 15000 });
+
+    const othersTaskTitle = page.getByText('フロントエンドダッシュボード構築');
+    await expect(othersTaskTitle).not.toBeVisible();
+
+    // 5. タイマー開始ボタンのクリックと停止ボタンの確認 (確実なアサーション)
     const startTimerBtn = page.getByRole('button', { name: /▶️ タイマー開始/i }).first();
-    await expect(startTimerBtn).toBeVisible();
+    await expect(startTimerBtn).toBeVisible({ timeout: 15000 });
     await startTimerBtn.click();
 
     // 計測中状態（タイマー停止 ボタン）への変化を確認
     const stopTimerBtn = page.getByRole('button', { name: /タイマー停止/i }).first();
-    await expect(stopTimerBtn).toBeVisible();
+    await expect(stopTimerBtn).toBeVisible({ timeout: 15000 });
   });
 
   test('US-ENG-02: マイ・ガントチャートとセルフキャパシティ分析の確認', async ({ page }) => {
