@@ -2,21 +2,84 @@ import { test, expect } from '@playwright/test';
 
 test.describe('ENGINEER ロール ユーザーストーリー E2Eテスト', () => {
 
-  test.beforeEach(async ({ page }) => {
-    // storageStateにより自動認証済み
-    await page.goto('/tasks');
-  });
-
   test('US-ENG-01: マイ・フォーカスモードでの実績入力とタイマー動作', async ({ page }) => {
-    await expect(page).toHaveTitle(/DevTaskPro/);
-    // タスクカード（またはかんばんボード）が確実に表示されること
-    const taskBoard = page.getByTestId('create-task-button');
-    await expect(taskBoard).toBeVisible({ timeout: 10000 });
+    // 1. ダッシュボードへアクセス
+    await page.goto('/');
+
+    // 2. フォーカスモードタブが選択されていることの確認
+    const focusTab = page.getByTestId('tab-focus-mode');
+    await expect(focusTab).toBeVisible();
+
+    // 3. ヘッダータイトルが表示されていること
+    const focusHeading = page.getByText(/今日のフォーカス・タスク/i);
+    await expect(focusHeading).toBeVisible();
+
+    // 4. 自分に担当アサインされたタスクのみが表示され、他人のタスクが表示されないことを確認
+    const myAssignedTaskTitle = page.getByText('認証APIの設計と実装');
+    await expect(myAssignedTaskTitle).toBeVisible({ timeout: 15000 });
+
+    const othersTaskTitle = page.getByText('フロントエンドダッシュボード構築');
+    await expect(othersTaskTitle).not.toBeVisible();
+
+    // 5. タイマー開始ボタンのクリックと一時停止ボタンの確認
+    const startTimerBtn = page.getByTestId(/start-timer-btn/i).first();
+    await expect(startTimerBtn).toBeVisible({ timeout: 15000 });
+    await startTimerBtn.click();
+
+    // 計測中状態（一時停止 ボタン）への変化を確認
+    const pauseTimerBtn = page.getByRole('button', { name: /一時停止/i }).first();
+    await expect(pauseTimerBtn).toBeVisible({ timeout: 15000 });
+
+    // 6. 動作中 (isTimerRunning === true) のままリロード後も localStorage 経由でタイマー計測状態が復元維持されることの確認
+    await page.reload();
+    const restoredPauseTimerBtn = page.getByRole('button', { name: /一時停止/i }).first();
+    await expect(restoredPauseTimerBtn).toBeVisible({ timeout: 15000 });
+
+    // 7. 一時停止 (isTimerRunning === false, lastStartedAt === null) 後にリロードしても一時停止状態 (再開ボタン) が正しく復元されることの確認
+    await restoredPauseTimerBtn.click(); // 一時停止
+    await page.reload();
+    const resumeTimerBtn = page.getByRole('button', { name: /再開/i }).first();
+    await expect(resumeTimerBtn).toBeVisible({ timeout: 15000 });
+
+    // 8. 再開後の実績保存ボタンの動作確認
+    await resumeTimerBtn.click();
+    const saveWorkLogBtn = page.getByRole('button', { name: /実績を記録して完了|実績保存/i }).first();
+    await expect(saveWorkLogBtn).toBeVisible({ timeout: 15000 });
+    await saveWorkLogBtn.click();
+
+    // 実績保存完了（非同期API処理）後にタイマーがリセットされ「▶️ タイマー開始」ボタンが復元されることを確認
+    const resetStartTimerBtn = page.getByTestId(/start-timer-btn/i).first();
+    await expect(resetStartTimerBtn).toBeVisible({ timeout: 20000 });
   });
 
   test('US-ENG-02: マイ・ガントチャートとセルフキャパシティ分析の確認', async ({ page }) => {
+    // 1. ガントチャートページへアクセス
     await page.goto('/gantt');
-    await expect(page.getByText(/ガントチャート/i).first()).toBeVisible({ timeout: 10000 });
+
+    // 2. ガントチャートタイトルが正常描画されていること
+    const ganttHeading = page.getByRole('heading', { name: 'ガントチャート', exact: true });
+    await expect(ganttHeading).toBeVisible();
+
+    // 3. 自分のタスクのみ絞り込みボタンのクリックテスト
+    const myGanttFilterBtn = page.getByTestId('filter-my-gantt');
+    await expect(myGanttFilterBtn).toBeVisible();
+    await myGanttFilterBtn.click();
+
+    // 4. アサイン状況画面での自分の負荷のみ絞り込み確認
+    await page.goto('/assignments');
+    const myAssignmentFilterBtn = page.getByRole('button', { name: /自分の負荷のみ/i });
+    await expect(myAssignmentFilterBtn).toBeVisible();
+    await myAssignmentFilterBtn.click();
+  });
+
+  test('かんばんボードでの「自分のタスクのみ」絞り込みフィルターテスト', async ({ page }) => {
+    // 1. かんばん（タスク一覧）へ移動
+    await page.goto('/tasks');
+
+    // 2. 自分のタスクのみフィルターボタンの動作確認
+    const myKanbanFilterBtn = page.getByTestId('filter-my-kanban');
+    await expect(myKanbanFilterBtn).toBeVisible();
+    await myKanbanFilterBtn.click();
   });
 
 });

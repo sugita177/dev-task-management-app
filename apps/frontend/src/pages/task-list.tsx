@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { taskApi, projectApi, userApi, commentApi, workLogApi, historyApi } from '../api/task-api';
 import { useTaskStore } from '../store/task-store';
-import type { Task, TaskProgressState, TaskPriority } from '../types/task';
+import { useAuthStore } from '../store/auth-store';
+import type { Task, TaskProgressState, TaskPriority, UpdateTaskDto, TaskHistory, User, Project } from '../types/task';
 
 // モックマスターデータ定義（バックエンドのバリデーションに適合するよう正しいUUIDフォーマットに変更）
 const mockProjects = [
@@ -26,6 +27,8 @@ const mockUsers = [
 
 export default function TaskList() {
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuthStore();
+  const [taskScopeFilter, setTaskScopeFilter] = useState<'ALL' | 'ASSIGNED' | 'CREATED'>('ALL');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
@@ -100,7 +103,7 @@ export default function TaskList() {
 
   // タスク更新のミューテーション（エラーハンドリングを追加）
   const updateTaskMutation = useMutation({
-    mutationFn: ({ id, dto }: { id: string; dto: any }) => taskApi.update(id, dto),
+    mutationFn: ({ id, dto }: { id: string; dto: UpdateTaskDto }) => taskApi.update(id, dto),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['histories', variables.id] });
@@ -138,7 +141,7 @@ export default function TaskList() {
       queryClient.invalidateQueries({ queryKey: ['comments', selectedTask?.id] });
       setCommentText('');
     },
-    onError: (error: any) => {
+    onError: (error) => {
       alert('コメント追加に失敗しました。\nエラー: ' + error.message);
     }
   });
@@ -152,7 +155,7 @@ export default function TaskList() {
       setWorkLogHours(0);
       setWorkLogDesc('');
     },
-    onError: (error: any) => {
+    onError: (error) => {
       alert('工数記録に失敗しました。\nエラー: ' + error.message);
     }
   });
@@ -241,7 +244,7 @@ export default function TaskList() {
     });
   };
 
-  const renderHistoryDetails = (history: any) => {
+  const renderHistoryDetails = (history: TaskHistory) => {
     if (history.actionType === 'CREATE' || !history.beforePayload) {
       return 'タスクを起票しました。';
     }
@@ -267,7 +270,7 @@ export default function TaskList() {
       }
     };
 
-    const translateValue = (key: string, val: any) => {
+    const translateValue = (key: string, val: unknown) => {
       if (val === null || val === undefined || val === '') return '未設定';
       if (key === 'progressState') {
         switch (val) {
@@ -275,7 +278,7 @@ export default function TaskList() {
           case 'IN_PROGRESS': return '進行中';
           case 'IN_REVIEW': return 'レビュー中';
           case 'DONE': return '完了';
-          default: return val;
+          default: return String(val);
         }
       }
       if (key === 'priority') {
@@ -283,23 +286,23 @@ export default function TaskList() {
           case 'HIGH': return '高';
           case 'MEDIUM': return '中';
           case 'LOW': return '低';
-          default: return val;
+          default: return String(val);
         }
       }
       if (key === 'assignedUserId') {
-        const u = users.find((user: any) => user.id === val);
+        const u = users.find((user: User) => user.id === val);
         return u ? u.name : '未割り当て';
       }
       if (key === 'projectId') {
-        const p = projects.find((proj: any) => proj.id === val);
+        const p = projects.find((proj: Project) => proj.id === val);
         return p ? p.name : '未設定';
       }
       if (key === 'categoryId') {
-        const c = mockCategories.find((cat: any) => cat.id === val);
+        const c = mockCategories.find((cat: { id: string; name: string }) => cat.id === val);
         return c ? c.name : '未設定';
       }
       if (key === 'plannedStartDate' || key === 'plannedEndDate') {
-        return typeof val === 'string' ? val.split('T')[0] : val;
+        return typeof val === 'string' ? val.split('T')[0] : String(val);
       }
       return String(val);
     };
@@ -320,6 +323,13 @@ export default function TaskList() {
 
   // クライアントサイドでのフィルタリング処理
   const filteredTasks = tasks.filter(task => {
+    // 担当タスク / 起票タスク フィルター
+    if (taskScopeFilter === 'ASSIGNED' && task.assignedUserId !== currentUser?.id) {
+      return false;
+    }
+    if (taskScopeFilter === 'CREATED' && task.createdBy !== currentUser?.id) {
+      return false;
+    }
     // キーワード検索 (タイトル or 説明文)
     if (keyword && !task.title.toLowerCase().includes(keyword.toLowerCase()) && !task.description?.toLowerCase().includes(keyword.toLowerCase())) {
       return false;
@@ -356,6 +366,36 @@ export default function TaskList() {
       {/* 上部コントロールエリア */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex flex-wrap items-center gap-3">
+          {/* 統一フィルター UI (セグメントボタン: 全体 / 自分が担当 / 自分が起票) */}
+          <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
+            <button
+              onClick={() => setTaskScopeFilter('ALL')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                taskScopeFilter === 'ALL' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              👥 全体タスク
+            </button>
+            <button
+              onClick={() => setTaskScopeFilter('ASSIGNED')}
+              data-testid="filter-my-kanban"
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                taskScopeFilter === 'ASSIGNED' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              👤 自分が担当
+            </button>
+            <button
+              onClick={() => setTaskScopeFilter('CREATED')}
+              data-testid="filter-created-kanban"
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                taskScopeFilter === 'CREATED' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              📝 自分が起票
+            </button>
+          </div>
+
           {/* キーワード入力 */}
           <input
             type="text"
@@ -686,6 +726,7 @@ export default function TaskList() {
                   <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">ステータス</label>
                     <select
+                      data-testid="edit-status-select"
                       value={editStatus}
                       onChange={(e) => setEditStatus(e.target.value as TaskProgressState)}
                       className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 font-semibold"
@@ -765,7 +806,10 @@ export default function TaskList() {
                 <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <div>
                     <span className="text-xs font-bold text-slate-500 uppercase">合計実績時間</span>
-                    <p className="text-2xl font-black text-indigo-600">{workLogs.reduce((sum, l) => sum + l.hours, 0)} <span className="text-sm font-normal text-slate-500">時間</span></p>
+                    <p className="text-2xl font-black text-indigo-600">
+                      {Number(workLogs.reduce((sum, l) => sum + (Number(l.hours) || 0), 0).toFixed(2))}{' '}
+                      <span className="text-sm font-normal text-slate-500">時間</span>
+                    </p>
                   </div>
                   {selectedTask.estimatedHours && (
                     <div className="text-right">
@@ -788,7 +832,9 @@ export default function TaskList() {
                           </div>
                           {log.description && <p className="text-xs text-slate-500 mt-1">{log.description}</p>}
                         </div>
-                        <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg text-xs">{log.hours}h</span>
+                        <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg text-xs">
+                          {Number(log.hours).toFixed(2)}h
+                        </span>
                       </div>
                     ))
                   )}
@@ -811,12 +857,12 @@ export default function TaskList() {
                       <label className="block text-xs font-semibold text-slate-500 mb-1">作業時間 (時間)</label>
                       <input
                         type="number"
-                        step="0.25"
-                        min="0.25"
+                        step="0.01"
+                        min="0.01"
                         required
                         value={workLogHours || ''}
                         onChange={(e) => setWorkLogHours(parseFloat(e.target.value) || 0)}
-                        placeholder="例: 1.5"
+                        placeholder="例: 1.25 や 0.01"
                         className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200"
                       />
                     </div>

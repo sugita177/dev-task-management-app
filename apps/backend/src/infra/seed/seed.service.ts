@@ -6,6 +6,9 @@ import { UserOrmEntity } from '../entities/user.orm-entity';
 import { ProjectOrmEntity } from '../entities/project.orm-entity';
 import { OrganizationOrmEntity } from '../entities/organization.orm-entity';
 import { CategoryOrmEntity } from '../entities/category.orm-entity';
+import { TaskOrmEntity } from '../entities/task.orm-entity';
+import { ProgressStateUuidMap, PriorityUuidMap } from '../mappers/task-db.mapper';
+import { TaskProgressState, TaskPriority } from '../../domain/entities/task.entity';
 
 @Injectable()
 export class SeedService implements OnApplicationBootstrap {
@@ -20,6 +23,7 @@ export class SeedService implements OnApplicationBootstrap {
     await this.seedRoles();
     await this.seedUsers();
     await this.seedProjects();
+    await this.seedTasks();
     this.logger.log('DB Seeding Completed.');
   }
 
@@ -168,6 +172,48 @@ export class SeedService implements OnApplicationBootstrap {
         this.logger.log(`Seeding project: ${project.name}`);
         const entity = this.entityManager.create(ProjectOrmEntity, project);
         await this.entityManager.save(ProjectOrmEntity, entity);
+      }
+    }
+  }
+
+  private async seedTasks() {
+    const tasks = [
+      {
+        id: '00000000-0000-0000-0000-000000000101',
+        title: '認証APIの設計と実装',
+        description: 'JWTベースの認証とリフレッシュトークン制御の実装',
+        projectId: '00000000-0000-0000-0000-000000000201',
+        assignedUserId: '00000000-0000-0000-0000-000000000401', // Satoshi Manager
+        progressStateId: ProgressStateUuidMap[TaskProgressState.IN_PROGRESS],
+        categoryId: '00000000-0000-0000-0000-000000000701',
+        priorityId: PriorityUuidMap[TaskPriority.HIGH],
+        plannedStartDate: new Date('2026-08-01'),
+        plannedEndDate: new Date('2026-08-15'),
+        estimatedHours: 40,
+        createdBy: '00000000-0000-0000-0000-000000000401',
+      },
+      {
+        id: '00000000-0000-0000-0000-000000000102',
+        title: 'フロントエンドダッシュボード構築',
+        description: 'フォーカスモードとタイムトラッキングUIの構築',
+        projectId: '00000000-0000-0000-0000-000000000202',
+        assignedUserId: '00000000-0000-0000-0000-000000000402', // 田中 太郎
+        progressStateId: ProgressStateUuidMap[TaskProgressState.IN_PROGRESS],
+        categoryId: '00000000-0000-0000-0000-000000000701',
+        priorityId: PriorityUuidMap[TaskPriority.MEDIUM],
+        plannedStartDate: new Date('2026-08-01'),
+        plannedEndDate: new Date('2026-08-20'),
+        estimatedHours: 30,
+        createdBy: '00000000-0000-0000-0000-000000000401',
+      },
+    ];
+
+    for (const task of tasks) {
+      const exists = await this.entityManager.findOneBy(TaskOrmEntity, { id: task.id });
+      if (!exists) {
+        this.logger.log(`Seeding task: ${task.title}`);
+        const entity = this.entityManager.create(TaskOrmEntity, task);
+        await this.entityManager.save(TaskOrmEntity, entity);
       }
     }
   }

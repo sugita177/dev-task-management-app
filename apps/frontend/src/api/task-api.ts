@@ -1,5 +1,6 @@
 import type { Task, CreateTaskDto, UpdateTaskDto, Comment, WorkLog, TaskHistory, Project, User } from '../types/task';
 import { apiClient } from '../lib/api-client';
+import { AxiosError } from 'axios';
 
 export interface AuthUser {
   id: string;
@@ -28,8 +29,9 @@ export const authApi = {
     try {
       const res = await apiClient.post('/auth/login', { email, password });
       return res.data;
-    } catch (err: any) {
-      const errorMsg = err.response?.data?.message || 'ログインに失敗しました。';
+    } catch (err: unknown) {
+      const axiosErr = err as AxiosError<{ message?: string }>;
+      const errorMsg = axiosErr.response?.data?.message || 'ログインに失敗しました。';
       throw new Error(errorMsg);
     }
   },
@@ -59,8 +61,9 @@ export const taskApi = {
     try {
       const res = await apiClient.post('/tasks', dto);
       return res.data;
-    } catch (err: any) {
-      const errData = err.response?.data || {};
+    } catch (err: unknown) {
+      const axiosErr = err as AxiosError<{ message?: string | string[] }>;
+      const errData = axiosErr.response?.data || {};
       const errorMsg = Array.isArray(errData.message) ? errData.message.join(', ') : (errData.message || 'Failed to create task');
       throw new Error(errorMsg);
     }
@@ -70,8 +73,9 @@ export const taskApi = {
     try {
       const res = await apiClient.put(`/tasks/${id}`, dto);
       return res.data;
-    } catch (err: any) {
-      const errData = err.response?.data || {};
+    } catch (err: unknown) {
+      const axiosErr = err as AxiosError<{ message?: string | string[] }>;
+      const errData = axiosErr.response?.data || {};
       const errorMsg = Array.isArray(errData.message) ? errData.message.join(', ') : (errData.message || `Failed to update task ${id}`);
       throw new Error(errorMsg);
     }

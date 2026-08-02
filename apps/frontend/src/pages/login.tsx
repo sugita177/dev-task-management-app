@@ -22,8 +22,9 @@ export default function Login() {
       const { user } = await authApi.login(loginEmail, loginPass);
       setUser(user);
       navigate(from, { replace: true });
-    } catch (err: any) {
-      setErrorMessage(err.message || 'ログインに失敗しました。認証情報をご確認ください。');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'ログインに失敗しました。認証情報をご確認ください。';
+      setErrorMessage(msg);
     } finally {
       setIsLoading(false);
     }

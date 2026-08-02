@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { taskApi, projectApi } from '../api/task-api';
-import type { Task, TaskProgressState } from '../types/task';
+import { taskApi, projectApi, userApi } from '../api/task-api';
+import { useAuthStore } from '../store/auth-store';
+import type { Task, TaskProgressState, User } from '../types/task';
 
 // モックプロジェクトデータ（プロジェクト名紐付け用）
 const mockProjects = [
@@ -10,16 +12,29 @@ const mockProjects = [
 ];
 
 export default function Gantt() {
-  // バックエンドからタスク一覧を取得
-  const { data: tasks = [], isLoading } = useQuery<Task[]>({
+  const { user: currentUser } = useAuthStore();
+  const [filterMyTasks, setFilterMyTasks] = useState<boolean>(false);
+
+  // バックエンドからタスク一覧・ユーザー一覧・プロジェクト一覧を取得
+  const { data: rawTasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ['tasks'],
     queryFn: taskApi.list,
+  });
+
+  const { data: users = [] } = useQuery({
+    queryKey: ['users'],
+    queryFn: userApi.list,
   });
 
   const { data: projects = mockProjects } = useQuery({
     queryKey: ['projects'],
     queryFn: projectApi.list,
   });
+
+  // 自分の担当タスクのみの絞り込み処理
+  const tasks = filterMyTasks
+    ? rawTasks.filter((t) => t.assignedUserId === currentUser?.id)
+    : rawTasks;
 
   // カレンダー表示範囲の設定（今日から前後15日、計30日間を表示）
   const totalDays = 30;
@@ -51,12 +66,42 @@ export default function Gantt() {
     }
   };
 
+  const getAssigneeName = (assignedUserId?: string) => {
+    if (!assignedUserId) return '未割り当て';
+    const foundUser = users.find((u: User) => u.id === assignedUserId);
+    return foundUser ? foundUser.name : '担当者設定あり';
+  };
 
   return (
     <div className="space-y-6">
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
-        <h3 className="text-lg font-bold text-slate-800 mb-2">スケジュール進捗 (ガントチャート)</h3>
-        <p className="text-xs text-slate-500">プロジェクト全体のスケジュール進捗とタイムラインを一覧で可視化します。</p>
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-bold text-slate-800">スケジュール進捗 (ガントチャート)</h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            プロジェクト全体のスケジュール進捗と各タスクの担当者をリアルタイムで可視化します。
+          </p>
+        </div>
+
+        {/* 統一フィルター UI (セグメントボタン) */}
+        <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
+          <button
+            onClick={() => setFilterMyTasks(false)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              !filterMyTasks ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            👥 全体タスク
+          </button>
+          <button
+            onClick={() => setFilterMyTasks(true)}
+            data-testid="filter-my-gantt"
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              filterMyTasks ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            👤 自分のタスクのみ
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -69,8 +114,8 @@ export default function Gantt() {
               {/* グリッドヘッダー */}
               <div className="flex border-b border-slate-200 bg-slate-50/50">
                 {/* タスク情報列 (固定枠) */}
-                <div className="w-[300px] shrink-0 p-4 font-bold text-xs text-slate-500 border-r border-slate-200">
-                  タスク名 / プロジェクト
+                <div className="w-[320px] shrink-0 p-4 font-bold text-xs text-slate-500 border-r border-slate-200">
+                  タスク名 / 担当者 / プロジェクト
                 </div>
                 {/* カレンダータイムライン列 */}
                 <div className="flex-1 grid grid-cols-[repeat(30,_minmax(0,_1fr))]">
@@ -107,8 +152,8 @@ export default function Gantt() {
                 {tasks.map((task) => {
                   const project = projects.find(p => p.id === task.projectId);
                   const progress = getStatusProgress(task.progressState);
+                  const assigneeName = getAssigneeName(task.assignedUserId);
 
-                  // ガントバーのグリッド位置計算
                   let startCol = -1;
                   let colSpan = 0;
                   let hasSchedule = false;
@@ -117,15 +162,10 @@ export default function Gantt() {
                     const plannedStart = getZeroTimeDate(new Date(task.plannedStartDate));
                     const plannedEnd = getZeroTimeDate(new Date(task.plannedEndDate));
 
-                    // カレンダーの範囲内に入っているか検証
                     if (plannedEnd >= startDateTime && plannedStart <= endDateTime) {
                       hasSchedule = true;
-
-                      // 開始位置の計算
                       const diffFromStart = Math.round((plannedStart - startDateTime) / (24 * 60 * 60 * 1000));
-                      startCol = Math.max(0, diffFromStart) + 1; // CSS Gridの始点は1から始まる
-
-                      // 期間（グリッド幅）の計算
+                      startCol = Math.max(0, diffFromStart) + 1;
                       const duration = Math.round((plannedEnd - Math.max(startDateTime, plannedStart)) / (24 * 60 * 60 * 1000)) + 1;
                       colSpan = Math.min(totalDays - (startCol - 1), duration);
                     }
@@ -134,16 +174,20 @@ export default function Gantt() {
                   return (
                     <div key={task.id} className="flex hover:bg-slate-50/50 transition items-stretch">
                       {/* タスク情報列 */}
-                      <div className="w-[300px] shrink-0 p-4 border-r border-slate-200 flex flex-col justify-center">
+                      <div className="w-[320px] shrink-0 p-4 border-r border-slate-200 flex flex-col justify-center space-y-1">
                         <span className="font-bold text-slate-800 text-sm truncate">{task.title}</span>
-                        <span className="text-[10px] font-semibold text-slate-400 mt-1">
-                          {project?.name || 'タスク管理アプリ'}
-                        </span>
+                        <div className="flex items-center gap-2 text-[10px]">
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold border border-slate-200 truncate">
+                            👤 {assigneeName}
+                          </span>
+                          <span className="font-medium text-slate-400 truncate">
+                            {project?.name || 'タスク管理アプリ'}
+                          </span>
+                        </div>
                       </div>
 
                       {/* タイムライングリッド */}
                       <div className="flex-1 grid grid-cols-[repeat(30,_minmax(0,_1fr))] items-center relative min-h-[56px]">
-                        {/* グリッド背景の縦線 */}
                         {Array.from({ length: totalDays }).map((_, idx) => (
                           <div
                             key={idx}
@@ -160,15 +204,13 @@ export default function Gantt() {
                               gridColumnStart: startCol,
                               gridColumnEnd: startCol + colSpan,
                             }}
-                            title={`${task.title}\n予定期間: ${task.plannedStartDate?.slice(0, 10)} 〜 ${task.plannedEndDate?.slice(0, 10)}\n進捗: ${progress}%`}
+                            title={`${task.title}\n担当者: ${assigneeName}\n予定期間: ${task.plannedStartDate?.slice(0, 10)} 〜 ${task.plannedEndDate?.slice(0, 10)}\n進捗: ${progress}%`}
                           >
-                            {/* 進捗バー表示用の背景色 */}
                             <div className="absolute inset-y-0 left-0 bg-indigo-500/20" style={{ width: '100%' }}></div>
                             <div className="absolute inset-y-0 left-0 bg-indigo-500 transition-all duration-300" style={{ width: `${progress}%` }}></div>
 
-                            {/* ラベル表示 */}
                             <div className="absolute inset-0 flex items-center justify-between px-3 text-[10px] font-bold text-white z-10 drop-shadow-md">
-                              <span className="truncate">{task.title}</span>
+                              <span className="truncate">{task.title} ({assigneeName})</span>
                               <span>{progress}%</span>
                             </div>
                           </div>
@@ -184,7 +226,7 @@ export default function Gantt() {
 
                 {tasks.length === 0 && (
                   <div className="p-12 text-center text-slate-400 font-medium">
-                    タスクが登録されていません。かんばんボードからタスクを追加してください。
+                    タスクが登録されていないか、絞り込み条件に一致するタスクがありません。
                   </div>
                 )}
               </div>

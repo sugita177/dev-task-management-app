@@ -19,7 +19,7 @@ test.describe('ENGINEERING_MANAGER (EM) ロール ユーザーストーリー E2
     const monthBtn = page.getByRole('button', { name: /^今月$/ });
     await expect(monthBtn).toBeVisible();
     await monthBtn.click();
-    await expect(page.getByText(/1日〜末日/).first()).toBeVisible();
+    await expect(page.getByText(/今月の予定負荷/).first()).toBeVisible({ timeout: 10000 });
   });
 
   test('US-EM-03: 見積もりと実績の乖離（偏差）アラート表示確認', async ({ page }) => {
