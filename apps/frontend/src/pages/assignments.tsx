@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { taskApi, projectApi, userApi } from '../api/task-api';
 import { useAuthStore } from '../store/auth-store';
-import type { Task, TaskProgressState } from '../types/task';
+import type { Task, TaskProgressState, User, Role } from '../types/task';
 
 // モックユーザーデータ定義 (IDはtask-list.tsxのUUID形式と共通化)
-const mockUsers = [
-  { id: '00000000-0000-0000-0000-000000000401', name: 'Satoshi Manager', role: 'PM / 設計', initials: 'SM', maxHours: 40 },
-  { id: '00000000-0000-0000-0000-000000000402', name: '田中 太郎', role: 'シニアエンジニア', initials: 'TT', maxHours: 40 },
-  { id: '00000000-0000-0000-0000-000000000403', name: '鈴木 一郎', role: 'ジュニアエンジニア', initials: 'JI', maxHours: 40 },
+const mockUsers: User[] = [
+  { id: '00000000-0000-0000-0000-000000000401', name: 'Satoshi Manager', email: 'satoshi@example.com', role: 'PM / 設計', initials: 'SM', maxHours: 40 },
+  { id: '00000000-0000-0000-0000-000000000402', name: '田中 太郎', email: 'tanaka@example.com', role: 'シニアエンジニア', initials: 'TT', maxHours: 40 },
+  { id: '00000000-0000-0000-0000-000000000403', name: '鈴木 一郎', email: 'suzuki@example.com', role: 'ジュニアエンジニア', initials: 'JI', maxHours: 40 },
 ];
 
 const mockProjects = [
@@ -30,7 +30,7 @@ export default function Assignments() {
     queryFn: taskApi.list,
   });
 
-  const { data: rawUsers = mockUsers } = useQuery({
+  const { data: rawUsers = mockUsers } = useQuery<User[]>({
     queryKey: ['users'],
     queryFn: userApi.list,
   });
@@ -42,22 +42,24 @@ export default function Assignments() {
 
   const getInitials = (name: string) => name.split(' ').map(n => n[0] || '').join('').toUpperCase().slice(0, 2) || 'U';
 
-  const getRoleLabel = (role: any) => {
-    if (typeof role === 'object' && role) {
-      switch (role.name) {
-        case 'ADMINISTRATOR': return '管理者';
-        case 'ENGINEERING_MANAGER': return 'マネージャー';
-        case 'ENGINEER': return 'エンジニア';
-        case 'BUSINESS': return 'ビジネスサイド';
-        default: return role.name;
-      }
+  const getRoleLabel = (role: Role | string | undefined, roleName?: string): string => {
+    // 1. オブジェクトのrole.name、またはroleName、または文字列roleからコード値（ENUM）を優先抽出
+    const candidate = (typeof role === 'object' && role?.name) || roleName || (typeof role === 'string' ? role : undefined);
+
+    switch (candidate) {
+      case 'ADMINISTRATOR': return '管理者';
+      case 'ENGINEERING_MANAGER': return 'マネージャー';
+      case 'ENGINEER': return 'エンジニア';
+      case 'BUSINESS': return 'ビジネスサイド';
+      default:
+        // マッチしない場合、モックデータの自由記述文字列（'PM / 設計'等）を返し、未設定なら'エンジニア'
+        return typeof role === 'string' ? role : (typeof candidate === 'string' ? candidate : 'エンジニア');
     }
-    return role || 'エンジニア';
   };
 
   // メンバー表示用配列の生成
-  const displayUsers = rawUsers.map((u: any) => {
-    const userRoleLabel = getRoleLabel(u.role || u.roleName);
+  const displayUsers = rawUsers.map((u) => {
+    const userRoleLabel = getRoleLabel(u.role, u.roleName);
     const userInitials = u.initials || getInitials(u.name);
     return {
       id: u.id,
@@ -70,7 +72,7 @@ export default function Assignments() {
 
   // 自分のみのフィルタリング処理
   const usersToRender = filterMyAssignments
-    ? displayUsers.filter((u: any) => u.id === currentUser?.id || u.name === currentUser?.name)
+    ? displayUsers.filter((u) => u.id === currentUser?.id || u.name === currentUser?.name)
     : displayUsers;
 
   // 期間計算ヘルパー (日割り按分)
@@ -184,7 +186,7 @@ export default function Assignments() {
         <div className="text-center py-20 text-slate-500 font-medium">ロード中...</div>
       ) : (
         <div className="grid grid-cols-1 gap-6">
-          {usersToRender.map((usr: any) => {
+          {usersToRender.map((usr) => {
             const userAssignedTasks = tasks.filter(t => t.assignedUserId === usr.id);
             const activeTasks = userAssignedTasks.filter(t => t.progressState !== 'DONE');
 

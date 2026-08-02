@@ -16,7 +16,7 @@ let failedQueue: Array<{
   reject: (reason?: unknown) => void;
 }> = [];
 
-const processQueue = (error: any = null) => {
+const processQueue = (error: unknown = null) => {
   failedQueue.forEach((promise) => {
     if (error) {
       promise.reject(error);

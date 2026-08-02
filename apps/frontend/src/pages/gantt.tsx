@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { taskApi, projectApi, userApi } from '../api/task-api';
 import { useAuthStore } from '../store/auth-store';
-import type { Task, TaskProgressState } from '../types/task';
+import type { Task, TaskProgressState, User } from '../types/task';
 
 // モックプロジェクトデータ（プロジェクト名紐付け用）
 const mockProjects = [
@@ -68,7 +68,7 @@ export default function Gantt() {
 
   const getAssigneeName = (assignedUserId?: string) => {
     if (!assignedUserId) return '未割り当て';
-    const foundUser = users.find((u: any) => u.id === assignedUserId);
+    const foundUser = users.find((u: User) => u.id === assignedUserId);
     return foundUser ? foundUser.name : '担当者設定あり';
   };
 

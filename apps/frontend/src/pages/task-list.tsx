@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { taskApi, projectApi, userApi, commentApi, workLogApi, historyApi } from '../api/task-api';
 import { useTaskStore } from '../store/task-store';
 import { useAuthStore } from '../store/auth-store';
-import type { Task, TaskProgressState, TaskPriority } from '../types/task';
+import type { Task, TaskProgressState, TaskPriority, UpdateTaskDto, TaskHistory, User, Project } from '../types/task';
 
 // モックマスターデータ定義（バックエンドのバリデーションに適合するよう正しいUUIDフォーマットに変更）
 const mockProjects = [
@@ -103,7 +103,7 @@ export default function TaskList() {
 
   // タスク更新のミューテーション（エラーハンドリングを追加）
   const updateTaskMutation = useMutation({
-    mutationFn: ({ id, dto }: { id: string; dto: any }) => taskApi.update(id, dto),
+    mutationFn: ({ id, dto }: { id: string; dto: UpdateTaskDto }) => taskApi.update(id, dto),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['histories', variables.id] });
@@ -141,7 +141,7 @@ export default function TaskList() {
       queryClient.invalidateQueries({ queryKey: ['comments', selectedTask?.id] });
       setCommentText('');
     },
-    onError: (error: any) => {
+    onError: (error) => {
       alert('コメント追加に失敗しました。\nエラー: ' + error.message);
     }
   });
@@ -155,7 +155,7 @@ export default function TaskList() {
       setWorkLogHours(0);
       setWorkLogDesc('');
     },
-    onError: (error: any) => {
+    onError: (error) => {
       alert('工数記録に失敗しました。\nエラー: ' + error.message);
     }
   });
@@ -244,7 +244,7 @@ export default function TaskList() {
     });
   };
 
-  const renderHistoryDetails = (history: any) => {
+  const renderHistoryDetails = (history: TaskHistory) => {
     if (history.actionType === 'CREATE' || !history.beforePayload) {
       return 'タスクを起票しました。';
     }
@@ -270,7 +270,7 @@ export default function TaskList() {
       }
     };
 
-    const translateValue = (key: string, val: any) => {
+    const translateValue = (key: string, val: unknown) => {
       if (val === null || val === undefined || val === '') return '未設定';
       if (key === 'progressState') {
         switch (val) {
@@ -278,7 +278,7 @@ export default function TaskList() {
           case 'IN_PROGRESS': return '進行中';
           case 'IN_REVIEW': return 'レビュー中';
           case 'DONE': return '完了';
-          default: return val;
+          default: return String(val);
         }
       }
       if (key === 'priority') {
@@ -286,23 +286,23 @@ export default function TaskList() {
           case 'HIGH': return '高';
           case 'MEDIUM': return '中';
           case 'LOW': return '低';
-          default: return val;
+          default: return String(val);
         }
       }
       if (key === 'assignedUserId') {
-        const u = users.find((user: any) => user.id === val);
+        const u = users.find((user: User) => user.id === val);
         return u ? u.name : '未割り当て';
       }
       if (key === 'projectId') {
-        const p = projects.find((proj: any) => proj.id === val);
+        const p = projects.find((proj: Project) => proj.id === val);
         return p ? p.name : '未設定';
       }
       if (key === 'categoryId') {
-        const c = mockCategories.find((cat: any) => cat.id === val);
+        const c = mockCategories.find((cat: { id: string; name: string }) => cat.id === val);
         return c ? c.name : '未設定';
       }
       if (key === 'plannedStartDate' || key === 'plannedEndDate') {
-        return typeof val === 'string' ? val.split('T')[0] : val;
+        return typeof val === 'string' ? val.split('T')[0] : String(val);
       }
       return String(val);
     };
