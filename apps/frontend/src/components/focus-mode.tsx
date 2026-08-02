@@ -23,9 +23,30 @@ export default function FocusMode() {
   const [secondsElapsed, setSecondsElapsed] = useState<number>(0);
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
   const [logDescription, setLogDescription] = useState<string>('');
-  const [isRestored, setIsRestored] = useState<boolean>(false);
 
-  // 初回マウント時に localStorage からタイマー状態を復元
+  // ヘルパー: タイマー状態を localStorage に即時永続化
+  const saveTimerToStorage = (
+    taskId: string | null,
+    secs: number,
+    running: boolean,
+    desc: string
+  ) => {
+    if (!taskId) {
+      localStorage.removeItem(TIMER_STORAGE_KEY);
+    } else {
+      const state: SavedTimerState = {
+        activeTaskId: taskId,
+        accumulatedSeconds: secs,
+        // 動作中（isTimerRunning === true）は開始時刻 (Date.now())、最後に押されたのが「一時停止」の場合は null
+        lastStartedAt: running ? Date.now() : null,
+        isTimerRunning: running,
+        logDescription: desc,
+      };
+      localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(state));
+    }
+  };
+
+  // 初回マウント時に localStorage からタイマー状態を正確に復元
   useEffect(() => {
     const raw = localStorage.getItem(TIMER_STORAGE_KEY);
     if (raw) {
@@ -55,33 +76,21 @@ export default function FocusMode() {
             setSecondsElapsed(currentSeconds);
             setIsTimerRunning(saved.isTimerRunning);
             setLogDescription(saved.logDescription || '');
+
+            // 復元された状態を最新のタイムスタンプとともに即時保存
+            saveTimerToStorage(
+              saved.activeTaskId,
+              currentSeconds,
+              saved.isTimerRunning,
+              saved.logDescription || ''
+            );
           }
         }
       } catch {
         localStorage.removeItem(TIMER_STORAGE_KEY);
       }
     }
-    setIsRestored(true);
   }, []);
-
-  // 状態変更時に localStorage へ同期保存
-  useEffect(() => {
-    if (!isRestored) return;
-
-    if (!activeTaskId) {
-      localStorage.removeItem(TIMER_STORAGE_KEY);
-    } else {
-      const timerState: SavedTimerState = {
-        activeTaskId,
-        accumulatedSeconds: secondsElapsed,
-        // 動作中（isTimerRunning === true）は開始時刻 (Date.now())、最後に押されたのが「一時停止」の場合は null
-        lastStartedAt: isTimerRunning ? Date.now() : null,
-        isTimerRunning,
-        logDescription,
-      };
-      localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(timerState));
-    }
-  }, [activeTaskId, secondsElapsed, isTimerRunning, logDescription, isRestored]);
 
   // バックエンドからタスク一覧を取得
   const { data: allTasks, isLoading } = useQuery<Task[]>({
@@ -99,13 +108,20 @@ export default function FocusMode() {
     let interval: ReturnType<typeof setInterval> | null = null;
     if (isTimerRunning) {
       interval = setInterval(() => {
-        setSecondsElapsed((prev) => prev + 1);
+        setSecondsElapsed((prev) => {
+          const nextSecs = prev + 1;
+          // 1秒ごとにストレージの累計秒数を同期更新
+          if (activeTaskId) {
+            saveTimerToStorage(activeTaskId, nextSecs, true, logDescription);
+          }
+          return nextSecs;
+        });
       }, 1000);
     }
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isTimerRunning]);
+  }, [isTimerRunning, activeTaskId, logDescription]);
 
   // 工数記録APIを呼ぶミューテーション
   const createWorkLogMutation = useMutation({
@@ -141,20 +157,36 @@ export default function FocusMode() {
     }
     setActiveTaskId(taskId);
     setIsTimerRunning(true);
+    saveTimerToStorage(taskId, secondsElapsed, true, logDescription);
   };
 
   const handlePauseTimer = () => {
     setIsTimerRunning(false);
+    saveTimerToStorage(activeTaskId, secondsElapsed, false, logDescription);
+  };
+
+  const handleResumeTimer = () => {
+    setIsTimerRunning(true);
+    saveTimerToStorage(activeTaskId, secondsElapsed, true, logDescription);
   };
 
   const handleStopAndSave = (taskId: string) => {
     setIsTimerRunning(false);
-    const hours = Math.max(0.1, Number((secondsElapsed / 3600).toFixed(2)));
+    // 経過秒数を時間(hours)に換算。小数第2位で丸め（バックエンドの @Min(0.01) バリデーションに合わせて最低 0.01h）
+    const hours = Math.max(0.01, Number((secondsElapsed / 3600).toFixed(2)));
+
     createWorkLogMutation.mutate({
       taskId,
       hours,
       description: logDescription || 'フォーカスモードでの作業実績',
     });
+  };
+
+  const handleLogDescriptionChange = (text: string) => {
+    setLogDescription(text);
+    if (activeTaskId) {
+      saveTimerToStorage(activeTaskId, secondsElapsed, isTimerRunning, text);
+    }
   };
 
   const formatTimer = (totalSeconds: number) => {
@@ -197,21 +229,24 @@ export default function FocusMode() {
                 {isTimerRunning ? (
                   <button
                     onClick={handlePauseTimer}
+                    data-testid="header-pause-timer-btn"
                     className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 transition"
                   >
-                    一時停止
+                    ⏸️ 一時停止
                   </button>
                 ) : (
                   <button
-                    onClick={() => setIsTimerRunning(true)}
+                    onClick={handleResumeTimer}
+                    data-testid="header-resume-timer-btn"
                     className="px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-500 text-white hover:bg-indigo-600 transition"
                   >
-                    再開
+                    ▶️ 再開
                   </button>
                 )}
                 <button
                   onClick={() => handleStopAndSave(activeTaskId)}
                   disabled={createWorkLogMutation.isPending}
+                  data-testid="header-save-timer-btn"
                   className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition shadow-lg shadow-emerald-500/20"
                 >
                   {createWorkLogMutation.isPending ? '保存中...' : '実績を記録して完了'}
@@ -270,9 +305,11 @@ export default function FocusMode() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-600">⏱ タイムトラッキング</span>
                     {isActive ? (
-                      <span className="text-xs font-mono font-bold text-indigo-600">{formatTimer(secondsElapsed)}</span>
+                      <span className="text-xs font-mono font-bold text-indigo-600">
+                        {formatTimer(secondsElapsed)} {isTimerRunning ? '(計測中)' : '(一時停止中)'}
+                      </span>
                     ) : (
-                      <span className="text-xs text-slate-400">停止中</span>
+                      <span className="text-xs text-slate-400">未開始</span>
                     )}
                   </div>
 
@@ -281,21 +318,40 @@ export default function FocusMode() {
                       type="text"
                       placeholder="作業メモを入力（任意）..."
                       value={logDescription}
-                      onChange={(e) => setLogDescription(e.target.value)}
+                      onChange={(e) => handleLogDescriptionChange(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                   )}
 
                   <div className="flex items-center gap-2 pt-1">
                     {isActive ? (
-                      <button
-                        onClick={() => handleStopAndSave(task.id)}
-                        disabled={createWorkLogMutation.isPending}
-                        data-testid={`stop-timer-btn-${task.id}`}
-                        className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-98 transition shadow-md shadow-emerald-600/10"
-                      >
-                        {createWorkLogMutation.isPending ? '保存中...' : '⏱ タイマー停止 ＆ 実績保存'}
-                      </button>
+                      <>
+                        {isTimerRunning ? (
+                          <button
+                            onClick={handlePauseTimer}
+                            data-testid={`pause-timer-btn-${task.id}`}
+                            className="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-amber-700 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition"
+                          >
+                            ⏸️ 一時停止
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleResumeTimer}
+                            data-testid={`resume-timer-btn-${task.id}`}
+                            className="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition"
+                          >
+                            ▶️ 再開
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleStopAndSave(task.id)}
+                          disabled={createWorkLogMutation.isPending}
+                          data-testid={`stop-timer-btn-${task.id}`}
+                          className="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-sm"
+                        >
+                          {createWorkLogMutation.isPending ? '保存中...' : '⏱️ 実績保存'}
+                        </button>
+                      </>
                     ) : (
                       <button
                         onClick={() => handleStartTimer(task.id)}

@@ -806,7 +806,10 @@ export default function TaskList() {
                 <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <div>
                     <span className="text-xs font-bold text-slate-500 uppercase">合計実績時間</span>
-                    <p className="text-2xl font-black text-indigo-600">{workLogs.reduce((sum, l) => sum + l.hours, 0)} <span className="text-sm font-normal text-slate-500">時間</span></p>
+                    <p className="text-2xl font-black text-indigo-600">
+                      {Number(workLogs.reduce((sum, l) => sum + (Number(l.hours) || 0), 0).toFixed(2))}{' '}
+                      <span className="text-sm font-normal text-slate-500">時間</span>
+                    </p>
                   </div>
                   {selectedTask.estimatedHours && (
                     <div className="text-right">
@@ -829,7 +832,9 @@ export default function TaskList() {
                           </div>
                           {log.description && <p className="text-xs text-slate-500 mt-1">{log.description}</p>}
                         </div>
-                        <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg text-xs">{log.hours}h</span>
+                        <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg text-xs">
+                          {Number(log.hours).toFixed(2)}h
+                        </span>
                       </div>
                     ))
                   )}
@@ -852,12 +857,12 @@ export default function TaskList() {
                       <label className="block text-xs font-semibold text-slate-500 mb-1">作業時間 (時間)</label>
                       <input
                         type="number"
-                        step="0.25"
-                        min="0.25"
+                        step="0.01"
+                        min="0.01"
                         required
                         value={workLogHours || ''}
                         onChange={(e) => setWorkLogHours(parseFloat(e.target.value) || 0)}
-                        placeholder="例: 1.5"
+                        placeholder="例: 1.25 や 0.01"
                         className="w-full px-3 py-1.5 text-sm rounded-lg border border-slate-200"
                       />
                     </div>
